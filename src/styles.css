@@ -1,44 +1,42 @@
-body {
-  font-family: 'Segoe UI', 'Arial', sans-serif;
-  background: #f7fafc;
-  margin: 0;
-  padding: 0;
-}
-.container {
-  max-width: 430px;
-  margin: 30px auto;
-  padding: 12px;
-}
-.card {
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 2px 8px #0001;
-  margin-bottom: 24px;
-  padding: 20px;
-}
-h2, h3 {
-  margin-top: 0;
-}
-.row {
+.setup-label {
+  font-size: 1.1em;
+  margin-bottom: 12px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+}
+.setup-select {
+  margin-top: 6px;
+  padding: 7px 10px;
+  font-size: 1em;
+  border-radius: 7px;
+  border: 1px solid #bbb;
+}
+.account-row {
+  display: flex;
   justify-content: space-between;
-  gap: 10px;
-  padding: 6px 0;
+  margin-bottom: 6px;
+}
+.highlight {
+  background: #f4fff7;
+  border: 1.5px solid #17a500;
+}
+.actions-row {
+  display: flex;
+  gap: 16px;
+  margin: 20px 0 0 0;
+  justify-content: center;
 }
 button {
   background: #008080;
   color: #fff;
   border: none;
-  padding: 7px 16px;
-  border-radius: 6px;
+  padding: 9px 18px;
+  border-radius: 7px;
   cursor: pointer;
   font-weight: 500;
+  font-size: 1em;
   transition: background 0.2s;
 }
 button:hover {
   background: #005f5f;
-}
-.success {
-  color: #17a500;
 }
