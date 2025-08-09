@@ -1,25 +1,37 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import "./styles.css";
 
 const STORAGE_KEY = "vaultswipe_mvp1";
 
+/**
+ * MVP 1 – Manual Mode
+ * - Add cards by nickname (collapsed "Add Card" control above list)
+ * - Per-card "Add Transaction" (compact inline form)
+ * - Transactions are compact (two lines) with Clear/Note
+ * - Edit card via card icon; Delete moved to far right
+ * - LocalStorage persistence; no bank linking required
+ */
+
 export default function App() {
+  // ---------- State ----------
   const [checkingBalance, setCheckingBalance] = useState(0);
+
   const [cards, setCards] = useState([
     { id: "c1", name: "Wells Fargo Cash Back", color: "#2563EB" },
     { id: "c2", name: "United Mileage Plus", color: "#7C3AED" },
   ]);
+
   const [txns, setTxns] = useState([
     { id: "t1", cardId: "c1", date: "2025-07-30", merchant: "Starbucks", amount: 12.57, note: "", cleared: false },
     { id: "t2", cardId: "c1", date: "2025-07-29", merchant: "Amazon", amount: 40.0, note: "Waiting for refund", cleared: false },
     { id: "t3", cardId: "c2", date: "2025-07-28", merchant: "Lyft", amount: 18.4, note: "", cleared: false },
   ]);
 
-  // UI collapsibles
-  const [showAddTxn, setShowAddTxn] = useState(false);
+  // Collapsible controls
+  const [showEditChecking, setShowEditChecking] = useState(false);
   const [showAddCard, setShowAddCard] = useState(false);
 
-  // Load/save
+  // ---------- Persistence ----------
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
@@ -30,11 +42,12 @@ export default function App() {
       if (Array.isArray(parsed.txns)) setTxns(parsed.txns);
     } catch {}
   }, []);
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ checkingBalance, cards, txns }));
   }, [checkingBalance, cards, txns]);
 
-  // Derived totals
+  // ---------- Derived totals ----------
   const pendingByCard = useMemo(() => {
     const map = {};
     cards.forEach((c) => (map[c.id] = 0));
@@ -43,21 +56,35 @@ export default function App() {
     });
     return map;
   }, [cards, txns]);
-  const totalPending = useMemo(() => Object.values(pendingByCard).reduce((a, b) => a + b, 0), [pendingByCard]);
 
-  // Actions
-  const addCard = (name, color) => {
+  const totalPending = useMemo(
+    () => Object.values(pendingByCard).reduce((a, b) => a + b, 0),
+    [pendingByCard]
+  );
+
+  // ---------- Actions ----------
+  const addCard = useCallback((name, color) => {
     const id = "c_" + Math.random().toString(36).slice(2);
-    setCards([...cards, { id, name, color: color || pickColor() }]);
-  };
-  const deleteCard = (cardId) => {
-    setCards(cards.filter((c) => c.id !== cardId));
-    setTxns(txns.filter((t) => t.cardId !== cardId));
-  };
-  const addTxn = (payload) => {
+    setCards((prev) => [...prev, { id, name, color: color || pickColor() }]);
+  }, []);
+
+  const renameCard = useCallback((cardId, newName) => {
+    setCards((prev) => prev.map((c) => (c.id === cardId ? { ...c, name: newName } : c)));
+  }, []);
+
+  const recolorCard = useCallback((cardId, newColor) => {
+    setCards((prev) => prev.map((c) => (c.id === cardId ? { ...c, color: newColor } : c)));
+  }, []);
+
+  const deleteCard = useCallback((cardId) => {
+    setCards((prev) => prev.filter((c) => c.id !== cardId));
+    setTxns((prev) => prev.filter((t) => t.cardId !== cardId));
+  }, []);
+
+  const addTxn = useCallback((payload) => {
     const id = "t_" + Math.random().toString(36).slice(2);
-    setTxns([
-      ...txns,
+    setTxns((prev) => [
+      ...prev,
       {
         id,
         cardId: payload.cardId,
@@ -68,42 +95,38 @@ export default function App() {
         cleared: false,
       },
     ]);
-  };
-  const toggleCleared = (txnId) => {
-    setTxns(txns.map((t) => (t.id === txnId ? { ...t, cleared: !t.cleared } : t)));
-  };
-  const updateTxnNote = (txnId, note) => {
-    setTxns(txns.map((t) => (t.id === txnId ? { ...t, note } : t)));
-  };
+  }, []);
+
+  const toggleCleared = useCallback((txnId) => {
+    setTxns((prev) => prev.map((t) => (t.id === txnId ? { ...t, cleared: !t.cleared } : t)));
+  }, []);
+
+  const updateTxnNote = useCallback((txnId, note) => {
+    setTxns((prev) => prev.map((t) => (t.id === txnId ? { ...t, note } : t)));
+  }, []);
+
+  // ---------- UI helpers ----------
+  const [hideReminder, setHideReminder] = useState(false);
+  const showReminder = totalPending > 0 && !hideReminder;
 
   function pickColor() {
     const palette = ["#2563EB", "#7C3AED", "#0EA5E9", "#10B981", "#F59E0B"];
     return palette[Math.floor(Math.random() * palette.length)];
   }
 
-  const [hideReminder, setHideReminder] = useState(false);
-  const showReminder = totalPending > 0 && !hideReminder;
-
   return (
     <div className="container">
       <div className="topbar">
         <h2>VaultSwipe — Manual Mode</h2>
-        <div className="subtle">Snapshot first. Add details only when you need them.</div>
+        <div className="subtle">Snapshot first. Add details only when needed.</div>
       </div>
 
-      {/* Snapshot actions */}
-      <div className="toolbar card">
+      {/* Snapshot card */}
+      <div className="card toolbar">
         <div className="toolbar-left">
-          <button className="btn" onClick={() => setShowAddTxn((v) => !v)}>
-            {showAddTxn ? "Close" : "Add Purchase"}
-          </button>
-          <button className="btn-outline" onClick={() => setShowAddCard((v) => !v)}>
-            {showAddCard ? "Close" : "Add Card"}
-          </button>
-        </div>
-        <div className="toolbar-right">
           <span className="pill">Pending to Transfer: ${totalPending.toFixed(2)}</span>
         </div>
+        <div className="toolbar-right" />
       </div>
 
       {/* Reminder banner */}
@@ -114,16 +137,18 @@ export default function App() {
         </div>
       )}
 
-      {/* Checking (collapsed to a small editor) */}
+      {/* Checking balance (collapsed editor) */}
       <div className="card">
         <h3>Main Checking Account</h3>
         <div className="account-row">
           <span>Available Balance</span>
           <span>${Number(checkingBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
         </div>
-        <details className="details">
-          <summary>Edit balance</summary>
-          <div className="row mt8">
+        <button className="btn-outline mt8" onClick={() => setShowEditChecking((v) => !v)}>
+          {showEditChecking ? "Close" : "Edit balance"}
+        </button>
+        {showEditChecking && (
+          <div className="row mt8 wrap">
             <input
               type="number"
               step="0.01"
@@ -133,21 +158,24 @@ export default function App() {
             />
             <button className="btn">Save</button>
           </div>
-          <div className="hint">Later: link this for real-time balance.</div>
-        </details>
+        )}
+        <div className="hint">Later: link this for real-time balance.</div>
       </div>
 
-      {/* Collapsible: Add Purchase */}
-      {showAddTxn && <AddTxnForm cards={cards} onAdd={addTxn} />}
-
-      {/* Collapsible: Add Card */}
-      {showAddCard && <AddCardForm onAdd={addCard} />}
-
-      {/* Cards */}
-      {cards.length === 0 ? (
-        <div className="card">
-          <em>Add a card to get started.</em>
+      {/* Add Card control (collapsed) */}
+      <div className="card">
+        <div className="card-header">
+          <h3>Add Card</h3>
+          <button className="btn" onClick={() => setShowAddCard((v) => !v)}>
+            {showAddCard ? "Close" : "Add Card"}
+          </button>
         </div>
+        {showAddCard && <AddCardForm onAdd={(name, color) => { addCard(name, color); setShowAddCard(false); }} />}
+      </div>
+
+      {/* Cards list */}
+      {cards.length === 0 ? (
+        <div className="card"><em>Add a card to get started.</em></div>
       ) : (
         cards.map((c) => (
           <CardBlock
@@ -155,8 +183,11 @@ export default function App() {
             card={c}
             txns={txns.filter((t) => t.cardId === c.id)}
             pendingTotal={pendingByCard[c.id] || 0}
+            onAddTxn={addTxn}
             onToggleCleared={toggleCleared}
             onUpdateNote={updateTxnNote}
+            onRename={renameCard}
+            onRecolor={recolorCard}
             onDeleteCard={() => deleteCard(c.id)}
           />
         ))
@@ -165,131 +196,117 @@ export default function App() {
   );
 }
 
+/* ---------- Components ---------- */
+
 function AddCardForm({ onAdd }) {
   const [name, setName] = useState("");
   const [color, setColor] = useState("");
 
   return (
-    <div className="card">
-      <h3>Add Card</h3>
-      <div className="row wrap">
-        <input
-          placeholder="Card nickname (e.g., WF Cashback)"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <input
-          placeholder="Optional color hex (e.g., #2563EB)"
-          value={color}
-          onChange={(e) => setColor(e.target.value)}
-        />
-        <button
-          className="btn"
-          onClick={() => {
-            if (!name.trim()) return;
-            onAdd(name.trim(), color.trim() || undefined);
-            setName("");
-            setColor("");
-          }}
-        >
-          Add
-        </button>
-      </div>
+    <div className="row wrap">
+      <input
+        className="flex1"
+        placeholder="Card nickname (e.g., WF Cashback)"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <input
+        placeholder="Optional color hex (e.g., #2563EB)"
+        value={color}
+        onChange={(e) => setColor(e.target.value)}
+      />
+      <button
+        className="btn"
+        onClick={() => {
+          if (!name.trim()) return;
+          onAdd(name.trim(), color.trim() || undefined);
+          setName("");
+          setColor("");
+        }}
+      >
+        Save Card
+      </button>
     </div>
   );
 }
 
-function AddTxnForm({ cards, onAdd }) {
-  const [cardId, setCardId] = useState(cards[0]?.id || "");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [merchant, setMerchant] = useState("");
-  const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
+function CardBlock({
+  card,
+  txns,
+  pendingTotal,
+  onAddTxn,
+  onToggleCleared,
+  onUpdateNote,
+  onRename,
+  onRecolor,
+  onDeleteCard,
+}) {
+  const [showAddTxn, setShowAddTxn] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
 
-  useEffect(() => {
-    if (cards.length && !cards.find((c) => c.id === cardId)) {
-      setCardId(cards[0].id);
-    }
-  }, [cards, cardId]);
-
-  return (
-    <div className="card">
-      <h3>Add Purchase</h3>
-      {cards.length === 0 ? (
-        <div className="hint">Add a card first.</div>
-      ) : (
-        <>
-          <div className="row wrap">
-            <label className="field">
-              <span className="lbl">Card</span>
-              <select value={cardId} onChange={(e) => setCardId(e.target.value)}>
-                {cards.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              <span className="lbl">Date</span>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            </label>
-            <label className="field flex1">
-              <span className="lbl">Merchant</span>
-              <input
-                placeholder="Where did you spend?"
-                value={merchant}
-                onChange={(e) => setMerchant(e.target.value)}
-              />
-            </label>
-            <label className="field">
-              <span className="lbl">Amount</span>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </label>
-          </div>
-          <div className="row">
-            <input
-              className="flex1"
-              placeholder="Optional note…"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-            />
-            <button
-              className="btn"
-              onClick={() => {
-                if (!cardId || !amount) return;
-                onAdd({ cardId, date, merchant, amount, note });
-                setMerchant("");
-                setAmount("");
-                setNote("");
-              }}
-            >
-              Add Purchase
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function CardBlock({ card, txns, pendingTotal, onToggleCleared, onUpdateNote, onDeleteCard }) {
   const pending = txns.filter((t) => !t.cleared);
   const cleared = txns.filter((t) => t.cleared);
 
   return (
     <div className="card">
-      <div className="card-header" style={{ borderLeft: `6px solid ${card.color}` }}>
-        <h3>{card.name}</h3>
-        <button className="btn-danger-outline" onClick={onDeleteCard}>Delete Card</button>
+      <div className="card-header cc-header" style={{ borderLeft: `6px solid ${card.color}` }}>
+        <div className="cc-title">
+          <button className="icon-btn" aria-label="Edit card" onClick={() => setShowEdit((v) => !v)}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="2"/>
+              <rect x="3" y="8" width="18" height="3" fill="currentColor"/>
+            </svg>
+          </button>
+          <h3>{card.name}</h3>
+        </div>
+        <div className="cc-actions">
+          <button className="btn" onClick={() => setShowAddTxn((v) => !v)}>
+            {showAddTxn ? "Close" : "Add Transaction"}
+          </button>
+          <button className="btn-danger-outline" onClick={onDeleteCard}>Delete</button>
+        </div>
       </div>
 
+      {showEdit && (
+        <div className="cc-edit">
+          <div className="row wrap">
+            <label className="field flex1">
+              <span className="lbl">Card name</span>
+              <input
+                defaultValue={card.name}
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v && v !== card.name) onRename(card.id, v);
+                }}
+              />
+            </label>
+            <label className="field">
+              <span className="lbl">Color</span>
+              <input
+                defaultValue={card.color}
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v && v !== card.color) onRecolor(card.id, v);
+                }}
+              />
+            </label>
+          </div>
+        </div>
+      )}
+
+      {showAddTxn && (
+        <div className="cc-add-txn">
+          <InlineAddTxn
+            cardId={card.id}
+            onAdd={(payload) => {
+              onAddTxn(payload);
+            }}
+          />
+        </div>
+      )}
+
       <div className="account-row">
-        <strong>Total Untransferred (Pending):</strong>
+        <strong>Untransferred (Pending):</strong>
         <span>${pendingTotal.toFixed(2)}</span>
       </div>
 
@@ -330,6 +347,54 @@ function CardBlock({ card, txns, pendingTotal, onToggleCleared, onUpdateNote, on
   );
 }
 
+function InlineAddTxn({ cardId, onAdd }) {
+  const [merchant, setMerchant] = useState("");
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+
+  return (
+    <div className="row wrap">
+      <input
+        className="flex1"
+        placeholder="Merchant"
+        value={merchant}
+        onChange={(e) => setMerchant(e.target.value)}
+      />
+      <input
+        type="number"
+        step="0.01"
+        placeholder="Amount"
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+      />
+      <input
+        className="flex1"
+        placeholder="Optional note"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+      />
+      <button
+        className="btn"
+        onClick={() => {
+          if (!amount) return;
+          onAdd({
+            cardId,
+            date: new Date().toISOString().slice(0, 10),
+            merchant,
+            amount,
+            note,
+          });
+          setMerchant("");
+          setAmount("");
+          setNote("");
+        }}
+      >
+        Add
+      </button>
+    </div>
+  );
+}
+
 function Section({ title, children }) {
   return (
     <div className="section">
@@ -344,32 +409,32 @@ function TxnRow({ txn, cleared, onToggleCleared, onUpdateNote }) {
   const [noteDraft, setNoteDraft] = useState(txn.note || "");
 
   return (
-    <div className={`txn-row ${cleared ? "cleared" : ""}`}>
-      <div className="txn-main">
-        <div className="txn-top">
-          <div className="txn-merchant">{txn.merchant || "—"}</div>
-          <div className="txn-amount">${Number(txn.amount).toFixed(2)}</div>
-        </div>
-        <div className="txn-meta">
+    <div className={`txn-row compact ${cleared ? "cleared" : ""}`}>
+      <div className="txn-line1">
+        <div className="txn-merchant">{txn.merchant || "—"}</div>
+        <div className="txn-amount">${Number(txn.amount).toFixed(2)}</div>
+      </div>
+
+      <div className="txn-line2">
+        <div className="txn-meta-left">
           <span className="muted">{txn.date}</span>
           {txn.note && !editing && <span className="note-pill">{txn.note}</span>}
         </div>
-      </div>
-
-      <div className="txn-actions">
-        <button className="btn-outline" onClick={onToggleCleared}>
-          {cleared ? "Unclear" : "Clear"}
-        </button>
-        <button className="btn-ghost" onClick={() => setEditing((v) => !v)}>
-          {editing ? "Cancel" : "Add Note"}
-        </button>
+        <div className="txn-actions">
+          <button className="btn-outline" onClick={onToggleCleared}>
+            {cleared ? "Unclear" : "Clear"}
+          </button>
+          <button className="btn-ghost" onClick={() => setEditing((v) => !v)}>
+            {editing ? "Cancel" : "Note"}
+          </button>
+        </div>
       </div>
 
       {editing && (
-        <div className="row mt8">
+        <div className="txn-note-editor">
           <input
             className="flex1"
-            placeholder="Add a note (e.g., refund pending, verify charge)"
+            placeholder="Add a note (refund pending, verify charge)"
             value={noteDraft}
             onChange={(e) => setNoteDraft(e.target.value)}
           />
