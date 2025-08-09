@@ -1,59 +1,25 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "./styles.css";
 
-/**
- * MVP 1 – Manual mode (no bank link required)
- * - Add cards by nickname
- * - Add purchases manually (amount, date, note, pick card)
- * - Show per-card "Untransferred" (Pending) items with [Clear]
- * - Keep a running total of pending per card and all cards
- * - Optional manual "Main Checking" balance entry (display only)
- * - LocalStorage persistence
- */
-
 const STORAGE_KEY = "vaultswipe_mvp1";
 
 export default function App() {
-  // -------- State --------
   const [checkingBalance, setCheckingBalance] = useState(0);
   const [cards, setCards] = useState([
-    // Example starter cards; feel free to clear after first run
-    { id: "c1", name: "Wells Fargo Cash Back", color: "#0F766E" },
-    { id: "c2", name: "United Mileage Plus", color: "#1D4ED8" },
+    { id: "c1", name: "Wells Fargo Cash Back", color: "#2563EB" },
+    { id: "c2", name: "United Mileage Plus", color: "#7C3AED" },
   ]);
-
   const [txns, setTxns] = useState([
-    // Sample seed data (you can remove)
-    {
-      id: "t1",
-      cardId: "c1",
-      date: "2025-07-30",
-      merchant: "Starbucks",
-      amount: 12.57,
-      note: "",
-      cleared: false,
-    },
-    {
-      id: "t2",
-      cardId: "c1",
-      date: "2025-07-29",
-      merchant: "Amazon",
-      amount: 40.0,
-      note: "Waiting for refund",
-      cleared: false,
-    },
-    {
-      id: "t3",
-      cardId: "c2",
-      date: "2025-07-28",
-      merchant: "Lyft",
-      amount: 18.4,
-      note: "",
-      cleared: false,
-    },
+    { id: "t1", cardId: "c1", date: "2025-07-30", merchant: "Starbucks", amount: 12.57, note: "", cleared: false },
+    { id: "t2", cardId: "c1", date: "2025-07-29", merchant: "Amazon", amount: 40.0, note: "Waiting for refund", cleared: false },
+    { id: "t3", cardId: "c2", date: "2025-07-28", merchant: "Lyft", amount: 18.4, note: "", cleared: false },
   ]);
 
-  // -------- Persistence (localStorage) --------
+  // UI collapsibles
+  const [showAddTxn, setShowAddTxn] = useState(false);
+  const [showAddCard, setShowAddCard] = useState(false);
+
+  // Load/save
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
@@ -62,17 +28,13 @@ export default function App() {
       if (parsed.checkingBalance != null) setCheckingBalance(parsed.checkingBalance);
       if (Array.isArray(parsed.cards)) setCards(parsed.cards);
       if (Array.isArray(parsed.txns)) setTxns(parsed.txns);
-    } catch (_) {}
+    } catch {}
   }, []);
-
   useEffect(() => {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ checkingBalance, cards, txns })
-    );
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ checkingBalance, cards, txns }));
   }, [checkingBalance, cards, txns]);
 
-  // -------- Derived totals --------
+  // Derived totals
   const pendingByCard = useMemo(() => {
     const map = {};
     cards.forEach((c) => (map[c.id] = 0));
@@ -81,24 +43,17 @@ export default function App() {
     });
     return map;
   }, [cards, txns]);
+  const totalPending = useMemo(() => Object.values(pendingByCard).reduce((a, b) => a + b, 0), [pendingByCard]);
 
-  const totalPending = useMemo(
-    () => Object.values(pendingByCard).reduce((a, b) => a + b, 0),
-    [pendingByCard]
-  );
-
-  // -------- Handlers --------
+  // Actions
   const addCard = (name, color) => {
     const id = "c_" + Math.random().toString(36).slice(2);
     setCards([...cards, { id, name, color: color || pickColor() }]);
   };
-
   const deleteCard = (cardId) => {
-    // Also remove txns tied to the card
     setCards(cards.filter((c) => c.id !== cardId));
     setTxns(txns.filter((t) => t.cardId !== cardId));
   };
-
   const addTxn = (payload) => {
     const id = "t_" + Math.random().toString(36).slice(2);
     setTxns([
@@ -114,76 +69,84 @@ export default function App() {
       },
     ]);
   };
-
   const toggleCleared = (txnId) => {
-    setTxns(
-      txns.map((t) => (t.id === txnId ? { ...t, cleared: !t.cleared } : t))
-    );
+    setTxns(txns.map((t) => (t.id === txnId ? { ...t, cleared: !t.cleared } : t)));
   };
-
   const updateTxnNote = (txnId, note) => {
     setTxns(txns.map((t) => (t.id === txnId ? { ...t, note } : t)));
   };
 
-  // -------- UI helpers --------
   function pickColor() {
-    const palette = ["#0F766E", "#1D4ED8", "#9333EA", "#B45309", "#065F46"];
+    const palette = ["#2563EB", "#7C3AED", "#0EA5E9", "#10B981", "#F59E0B"];
     return palette[Math.floor(Math.random() * palette.length)];
   }
 
-  // Simple reminder banner if anything pending
   const [hideReminder, setHideReminder] = useState(false);
   const showReminder = totalPending > 0 && !hideReminder;
 
   return (
     <div className="container">
-      <Header />
+      <div className="topbar">
+        <h2>VaultSwipe — Manual Mode</h2>
+        <div className="subtle">Snapshot first. Add details only when you need them.</div>
+      </div>
+
+      {/* Snapshot actions */}
+      <div className="toolbar card">
+        <div className="toolbar-left">
+          <button className="btn" onClick={() => setShowAddTxn((v) => !v)}>
+            {showAddTxn ? "Close" : "Add Purchase"}
+          </button>
+          <button className="btn-outline" onClick={() => setShowAddCard((v) => !v)}>
+            {showAddCard ? "Close" : "Add Card"}
+          </button>
+        </div>
+        <div className="toolbar-right">
+          <span className="pill">Pending to Transfer: ${totalPending.toFixed(2)}</span>
+        </div>
+      </div>
 
       {/* Reminder banner */}
       {showReminder && (
         <div className="banner">
-          <div>
-            You have <strong>${totalPending.toFixed(2)}</strong> in pending
-            manual transfers across your cards.
-          </div>
-          <button className="linkish" onClick={() => setHideReminder(true)}>
-            Dismiss
-          </button>
+          <div>You have <strong>${totalPending.toFixed(2)}</strong> in pending manual transfers.</div>
+          <button className="linkish" onClick={() => setHideReminder(true)}>Dismiss</button>
         </div>
       )}
 
-      {/* Checking balance (manual entry) */}
+      {/* Checking (collapsed to a small editor) */}
       <div className="card">
         <h3>Main Checking Account</h3>
         <div className="account-row">
           <span>Available Balance</span>
           <span>${Number(checkingBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
         </div>
-        <div className="row mt8">
-          <input
-            type="number"
-            step="0.01"
-            placeholder="Enter balance e.g. 2187.04"
-            value={checkingBalance}
-            onChange={(e) => setCheckingBalance(e.target.value)}
-          />
-          <button onClick={() => { /* value already stored via state/localStorage */ }}>
-            Save
-          </button>
-        </div>
-        <div className="hint">Tip: In later versions, you can link this to show the real-time balance.</div>
+        <details className="details">
+          <summary>Edit balance</summary>
+          <div className="row mt8">
+            <input
+              type="number"
+              step="0.01"
+              placeholder="Enter balance e.g. 2187.04"
+              value={checkingBalance}
+              onChange={(e) => setCheckingBalance(e.target.value)}
+            />
+            <button className="btn">Save</button>
+          </div>
+          <div className="hint">Later: link this for real-time balance.</div>
+        </details>
       </div>
 
-      {/* Add card */}
-      <AddCardForm onAdd={addCard} />
+      {/* Collapsible: Add Purchase */}
+      {showAddTxn && <AddTxnForm cards={cards} onAdd={addTxn} />}
 
-      {/* Add transaction */}
-      <AddTxnForm cards={cards} onAdd={addTxn} />
+      {/* Collapsible: Add Card */}
+      {showAddCard && <AddCardForm onAdd={addCard} />}
 
-      {/* Cards + pending items */}
+      {/* Cards */}
       {cards.length === 0 ? (
         <div className="card">
-          <em>Add your first card to get started.</em>
+          <em>Add a card to get started.</em>
         </div>
       ) : (
         cards.map((c) => (
@@ -198,24 +161,6 @@ export default function App() {
           />
         ))
       )}
-
-      {/* Footer totals */}
-      <div className="card highlight">
-        <div className="account-row">
-          <strong>Total Pending Across All Cards:</strong>
-          <span>${totalPending.toFixed(2)}</span>
-        </div>
-        <div className="hint">Clear items after you’ve made manual transfers in your bank.</div>
-      </div>
-    </div>
-  );
-}
-
-function Header() {
-  return (
-    <div className="topbar">
-      <h2>VaultSwipe — Manual Mode (MVP 1)</h2>
-      <div className="subtle">Track purchases, mark them cleared after you move money.</div>
     </div>
   );
 }
@@ -227,18 +172,19 @@ function AddCardForm({ onAdd }) {
   return (
     <div className="card">
       <h3>Add Card</h3>
-      <div className="row">
+      <div className="row wrap">
         <input
           placeholder="Card nickname (e.g., WF Cashback)"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
         <input
-          placeholder="Optional color hex (e.g., #0F766E)"
+          placeholder="Optional color hex (e.g., #2563EB)"
           value={color}
           onChange={(e) => setColor(e.target.value)}
         />
         <button
+          className="btn"
           onClick={() => {
             if (!name.trim()) return;
             onAdd(name.trim(), color.trim() || undefined);
@@ -261,7 +207,6 @@ function AddTxnForm({ cards, onAdd }) {
   const [note, setNote] = useState("");
 
   useEffect(() => {
-    // Keep selected card valid if cards list changes
     if (cards.length && !cards.find((c) => c.id === cardId)) {
       setCardId(cards[0].id);
     }
@@ -269,7 +214,7 @@ function AddTxnForm({ cards, onAdd }) {
 
   return (
     <div className="card">
-      <h3>Add Purchase (Manual)</h3>
+      <h3>Add Purchase</h3>
       {cards.length === 0 ? (
         <div className="hint">Add a card first.</div>
       ) : (
@@ -279,19 +224,13 @@ function AddTxnForm({ cards, onAdd }) {
               <span className="lbl">Card</span>
               <select value={cardId} onChange={(e) => setCardId(e.target.value)}>
                 {cards.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             </label>
             <label className="field">
               <span className="lbl">Date</span>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </label>
             <label className="field flex1">
               <span className="lbl">Merchant</span>
@@ -320,6 +259,7 @@ function AddTxnForm({ cards, onAdd }) {
               onChange={(e) => setNote(e.target.value)}
             />
             <button
+              className="btn"
               onClick={() => {
                 if (!cardId || !amount) return;
                 onAdd({ cardId, date, merchant, amount, note });
@@ -345,7 +285,7 @@ function CardBlock({ card, txns, pendingTotal, onToggleCleared, onUpdateNote, on
     <div className="card">
       <div className="card-header" style={{ borderLeft: `6px solid ${card.color}` }}>
         <h3>{card.name}</h3>
-        <button className="danger-outline" onClick={onDeleteCard}>Delete Card</button>
+        <button className="btn-danger-outline" onClick={onDeleteCard}>Delete Card</button>
       </div>
 
       <div className="account-row">
@@ -358,20 +298,34 @@ function CardBlock({ card, txns, pendingTotal, onToggleCleared, onUpdateNote, on
           <div className="muted">No pending items.</div>
         ) : (
           pending.map((t) => (
-            <TxnRow key={t.id} txn={t} onToggleCleared={() => onToggleCleared(t.id)} onUpdateNote={onUpdateNote} />
+            <TxnRow
+              key={t.id}
+              txn={t}
+              onToggleCleared={() => onToggleCleared(t.id)}
+              onUpdateNote={onUpdateNote}
+            />
           ))
         )}
       </Section>
 
-      <Section title="Cleared">
-        {cleared.length === 0 ? (
-          <div className="muted">Nothing cleared yet.</div>
-        ) : (
-          cleared.map((t) => (
-            <TxnRow key={t.id} txn={t} cleared onToggleCleared={() => onToggleCleared(t.id)} onUpdateNote={onUpdateNote} />
-          ))
-        )}
-      </Section>
+      <details className="details">
+        <summary>Cleared</summary>
+        <Section>
+          {cleared.length === 0 ? (
+            <div className="muted">Nothing cleared yet.</div>
+          ) : (
+            cleared.map((t) => (
+              <TxnRow
+                key={t.id}
+                txn={t}
+                cleared
+                onToggleCleared={() => onToggleCleared(t.id)}
+                onUpdateNote={onUpdateNote}
+              />
+            ))
+          )}
+        </Section>
+      </details>
     </div>
   );
 }
@@ -379,7 +333,7 @@ function CardBlock({ card, txns, pendingTotal, onToggleCleared, onUpdateNote, on
 function Section({ title, children }) {
   return (
     <div className="section">
-      <div className="section-title">{title}</div>
+      {title && <div className="section-title">{title}</div>}
       {children}
     </div>
   );
@@ -403,10 +357,10 @@ function TxnRow({ txn, cleared, onToggleCleared, onUpdateNote }) {
       </div>
 
       <div className="txn-actions">
-        <button className={cleared ? "secondary" : ""} onClick={onToggleCleared}>
+        <button className="btn-outline" onClick={onToggleCleared}>
           {cleared ? "Unclear" : "Clear"}
         </button>
-        <button className="secondary" onClick={() => setEditing((v) => !v)}>
+        <button className="btn-ghost" onClick={() => setEditing((v) => !v)}>
           {editing ? "Cancel" : "Add Note"}
         </button>
       </div>
@@ -420,6 +374,7 @@ function TxnRow({ txn, cleared, onToggleCleared, onUpdateNote }) {
             onChange={(e) => setNoteDraft(e.target.value)}
           />
           <button
+            className="btn"
             onClick={() => {
               onUpdateNote(txn.id, noteDraft);
               setEditing(false);
