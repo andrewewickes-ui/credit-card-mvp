@@ -1,6 +1,6 @@
 /* ===== Base ===== */
 :root {
-  --actions-width: 220px; /* keeps actions aligned down the page */
+  --actions-width: 220px; /* aligned right-side actions column */
 }
 
 body {
@@ -21,10 +21,6 @@ body {
   margin-bottom: 14px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
-.card.highlight {
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-}
 h3 { margin: 0 0 8px 0; }
 input, select, button {
   padding: 8px;
@@ -35,11 +31,6 @@ input, select, button {
 .row { display: flex; gap: 8px; }
 .wrap { flex-wrap: wrap; }
 .flex1 { flex: 1; }
-.account-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 4px 0;
-}
 .muted { color: #6b7280; }
 .hint { color: #6b7280; font-size: 0.9em; margin-top: 6px; }
 .mt8 { margin-top: 8px; }
@@ -111,21 +102,10 @@ input, select, button {
 }
 .btn-ghost:hover { background: #eff6ff; }
 
-.btn-danger-outline {
-  background: #fff;
-  color: #ef4444;
-  border: 1px solid #fecaca; /* red-200 */
-  padding: 8px 12px;
-  border-radius: 10px;
-  cursor: pointer;
-  font-weight: 700;
-}
-.btn-danger-outline:hover { background: #fef2f2; }
+.btn-xs { padding: 4px 8px; font-size: 12.5px; border-radius: 7px; font-weight: 700; }
+.btn-sm { padding: 6px 10px; font-size: 13px; border-radius: 8px; font-weight: 700; }
 
-/* Small buttons */
-.btn-sm { padding: 6px 10px; font-weight: 700; border-radius: 8px; font-size: 13px; }
-
-/* Icon-only button (used for edit icon) */
+/* Icon-only button */
 .icon-btn {
   background: #fff;
   border: 1px solid #e5e7eb;
@@ -141,7 +121,24 @@ input, select, button {
 }
 .icon-btn:hover { background: #f9fafb; }
 
-/* ===== Aligned headers/rows ===== */
+/* ===== Checking: compact inline editor on the right ===== */
+.row-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.inline-left { display: flex; flex-direction: column; }
+.inline-right { display: flex; align-items: center; gap: 10px; }
+.inline-edit { display: flex; align-items: center; gap: 8px; }
+.input-sm {
+  width: 140px;
+  padding: 6px 8px;
+  font-size: 14px;
+}
+.amt-inline { font-weight: 800; }
+
+/* ===== Card headers / aligned actions column ===== */
 .row-header {
   display: flex;
   align-items: center;
@@ -155,22 +152,39 @@ input, select, button {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-width: 0; /* allows truncate to work */
+  min-width: 0;
 }
+.title-stack { display: flex; flex-direction: column; gap: 2px; }
 .actions-col {
   flex: 0 0 var(--actions-width);
   width: var(--actions-width);
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+}
+.actions-col--tight { gap: 8px; }
+.amt-large {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+.due-line {
+  font-size: 12.5px;
+  color: #6b7280;
+}
+.due-soon {
+  color: #b45309;           /* amber-700 */
+  font-weight: 700;
 }
 
-/* ===== Sections ===== */
-.section { margin-top: 12px; }
-.section-title { font-weight: 700; margin-bottom: 8px; }
+/* ===== Edit / Add sections ===== */
+.cc-edit { margin-top: 10px; }
+.cc-add-txn { margin-top: 10px; }
+.field { display: flex; flex-direction: column; min-width: 160px; }
+.lbl { display: block; font-size: 0.85em; color: #5f6b7a; margin-bottom: 4px; }
 
-/* ===== Transactions (compact, two lines) ===== */
+/* ===== Transactions (compact, two lines, aligned actions) ===== */
 .txn-row {
   border: 1px solid #e5e7eb;
   border-radius: 12px;
@@ -187,15 +201,25 @@ input, select, button {
 }
 .txn-merchant { font-weight: 700; }
 .txn-amount { font-weight: 800; }
-.txn-meta-left { display: flex; gap: 8px; align-items: center; }
 
+/* Keep second line height consistent whether a note exists or not */
+.txn-line2 { min-height: 28px; }
+.txn-meta-left { display: flex; gap: 8px; align-items: center; }
 .note-pill {
   background: #eef2ff;
   color: #1d4ed8;
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 0.85em;
+  line-height: 22px;
 }
+.note-placeholder {
+  display: inline-block;
+  height: 22px;
+  min-width: 1px; /* preserves layout */
+}
+.txn-actions { display: flex; gap: 8px; align-items: center; }
+
 .txn-note-editor { display: flex; gap: 8px; margin-top: 8px; }
 
 /* ===== Mobile Polish ===== */
@@ -203,15 +227,13 @@ input, select, button {
   .container { padding: 12px; }
   .card { padding: 12px; border-radius: 14px; }
   .row { flex-direction: column; gap: 10px; }
-  .account-row { flex-direction: column; align-items: flex-start; gap: 4px; }
   input, select, button {
     font-size: 16px; /* prevent iOS zoom */
     padding: 10px 12px;
   }
-  .txn-row.compact { padding: 12px; }
-  .txn-line1, .txn-line2 { gap: 8px; }
-  .txn-meta-left { flex-wrap: wrap; }
 
-  /* Keep actions aligned on mobile too */
-  :root { --actions-width: 150px; }
+  /* Keep headers/actions aligned on mobile too */
+  :root { --actions-width: 160px; }
+  .amt-large { font-size: 18px; }
+  .input-sm { width: 120px; }
 }
