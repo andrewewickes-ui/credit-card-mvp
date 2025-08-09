@@ -1,42 +1,150 @@
-.setup-label {
-  font-size: 1.1em;
-  margin-bottom: 12px;
+/* ===== Existing Base Styles ===== */
+body {
+  font-family: sans-serif;
+  background: #f8fafc;
+  margin: 0;
+  padding: 0;
+}
+
+.container {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.card {
+  background: white;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.card.highlight {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+h3 {
+  margin: 0 0 8px 0;
+}
+
+input, select, button {
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  font-size: 14px;
+}
+
+button {
+  background: #0f766e;
+  color: white;
+  cursor: pointer;
+  border: none;
+}
+
+button.secondary {
+  background: #e5f3f2;
+  color: #065f46;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+.row {
   display: flex;
-  flex-direction: column;
+  gap: 8px;
 }
-.setup-select {
-  margin-top: 6px;
-  padding: 7px 10px;
-  font-size: 1em;
-  border-radius: 7px;
-  border: 1px solid #bbb;
-}
+
 .account-row {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 6px;
+  padding: 4px 0;
 }
-.highlight {
-  background: #f4fff7;
-  border: 1.5px solid #17a500;
+
+/* ===== New Dashboard & Transaction Styles ===== */
+
+.topbar {
+  margin-bottom: 14px;
 }
-.actions-row {
+.subtle {
+  color: #5f6b7a;
+  font-size: 0.95em;
+}
+
+.banner {
+  background: #fff8e1;
+  border: 1px solid #f6de9f;
+  border-radius: 12px;
+  padding: 10px 14px;
   display: flex;
-  gap: 16px;
-  margin: 20px 0 0 0;
-  justify-content: center;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
 }
-button {
-  background: #008080;
-  color: #fff;
+.linkish {
+  background: transparent;
+  color: #0f766e;
   border: none;
-  padding: 9px 18px;
-  border-radius: 7px;
   cursor: pointer;
-  font-weight: 500;
-  font-size: 1em;
-  transition: background 0.2s;
+  font-weight: 600;
 }
-button:hover {
-  background: #005f5f;
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-left: 8px;
+  margin: -6px 0 8px 0;
+  border-left: 6px solid #0f766e;
 }
+.section {
+  margin-top: 12px;
+}
+.section-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.txn-row {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 8px;
+  background: #fff;
+}
+.txn-row.cleared {
+  opacity: 0.7;
+}
+.txn-main { display: flex; flex-direction: column; gap: 4px; }
+.txn-top { display: flex; justify-content: space-between; }
+.txn-merchant { font-weight: 600; }
+.txn-amount { font-weight: 600; }
+.txn-meta { display: flex; gap: 8px; align-items: center; }
+.note-pill {
+  background: #eef2ff;
+  color: #1d4ed8;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.85em;
+}
+
+.danger-outline {
+  background: transparent;
+  border: 1px solid #ef4444;
+  color: #ef4444;
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+.secondary {
+  background: #e5f3f2;
+  color: #065f46;
+}
+.mt8 { margin-top: 8px; }
+.wrap { flex-wrap: wrap; }
+.lbl { display: block; font-size: 0.85em; color: #5f6b7a; margin-bottom: 4px; }
+.field { display: flex; flex-direction: column; min-width: 160px; }
+.flex1 { flex: 1; }
+.muted { color: #6b7280; }
+.hint { color: #6b7280; font-size: 0.9em; margin-top: 6px; }
