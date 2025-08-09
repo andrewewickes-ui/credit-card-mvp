@@ -4,12 +4,13 @@ import "./styles.css";
 const STORAGE_KEY = "vaultswipe_mvp1";
 
 /**
- * MVP 1 – Manual Mode
- * - Add cards by nickname (collapsed "Add Card" control above list)
- * - Per-card "Add Transaction" (compact inline form)
- * - Transactions are compact (two lines) with Clear/Note
- * - Edit card via card icon; Delete moved to far right
- * - LocalStorage persistence; no bank linking required
+ * MVP 1 – Manual Mode (refined)
+ * - Consistent right-side actions column for alignment
+ * - Small buttons (less visual weight) + icons
+ * - Add Card actions aligned with card rows
+ * - Per-card Add Transaction inline
+ * - Compact two-line transactions, Clear/Note
+ * - LocalStorage persistence
  */
 
 export default function App() {
@@ -27,7 +28,6 @@ export default function App() {
     { id: "t3", cardId: "c2", date: "2025-07-28", merchant: "Lyft", amount: 18.4, note: "", cleared: false },
   ]);
 
-  // Collapsible controls
   const [showEditChecking, setShowEditChecking] = useState(false);
   const [showAddCard, setShowAddCard] = useState(false);
 
@@ -129,7 +129,7 @@ export default function App() {
         <div className="toolbar-right" />
       </div>
 
-      {/* Reminder banner */}
+      {/* Reminder */}
       {showReminder && (
         <div className="banner">
           <div>You have <strong>${totalPending.toFixed(2)}</strong> in pending manual transfers.</div>
@@ -137,16 +137,24 @@ export default function App() {
         </div>
       )}
 
-      {/* Checking balance (collapsed editor) */}
+      {/* Checking */}
       <div className="card">
-        <h3>Main Checking Account</h3>
+        <div className="row-header">
+          <div className="title-col">
+            <h3>Main Checking Account</h3>
+          </div>
+          <div className="actions-col">
+            <button className="btn-outline btn-sm" onClick={() => setShowEditChecking((v) => !v)}>
+              {showEditChecking ? "Close" : "Edit"}
+            </button>
+          </div>
+        </div>
+
         <div className="account-row">
           <span>Available Balance</span>
           <span>${Number(checkingBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
         </div>
-        <button className="btn-outline mt8" onClick={() => setShowEditChecking((v) => !v)}>
-          {showEditChecking ? "Close" : "Edit balance"}
-        </button>
+
         {showEditChecking && (
           <div className="row mt8 wrap">
             <input
@@ -156,24 +164,28 @@ export default function App() {
               value={checkingBalance}
               onChange={(e) => setCheckingBalance(e.target.value)}
             />
-            <button className="btn">Save</button>
+            <button className="btn btn-sm">Save</button>
           </div>
         )}
         <div className="hint">Later: link this for real-time balance.</div>
       </div>
 
-      {/* Add Card control (collapsed) */}
+      {/* Add Card (aligned actions column) */}
       <div className="card">
-        <div className="card-header">
-          <h3>Add Card</h3>
-          <button className="btn" onClick={() => setShowAddCard((v) => !v)}>
-            {showAddCard ? "Close" : "Add Card"}
-          </button>
+        <div className="row-header">
+          <div className="title-col">
+            <h3>Add Card</h3>
+          </div>
+          <div className="actions-col">
+            <button className="btn btn-sm" onClick={() => setShowAddCard((v) => !v)}>
+              {showAddCard ? "Close" : "Add"}
+            </button>
+          </div>
         </div>
         {showAddCard && <AddCardForm onAdd={(name, color) => { addCard(name, color); setShowAddCard(false); }} />}
       </div>
 
-      {/* Cards list */}
+      {/* Cards */}
       {cards.length === 0 ? (
         <div className="card"><em>Add a card to get started.</em></div>
       ) : (
@@ -216,7 +228,7 @@ function AddCardForm({ onAdd }) {
         onChange={(e) => setColor(e.target.value)}
       />
       <button
-        className="btn"
+        className="btn btn-sm"
         onClick={() => {
           if (!name.trim()) return;
           onAdd(name.trim(), color.trim() || undefined);
@@ -224,7 +236,7 @@ function AddCardForm({ onAdd }) {
           setColor("");
         }}
       >
-        Save Card
+        Save
       </button>
     </div>
   );
@@ -249,21 +261,31 @@ function CardBlock({
 
   return (
     <div className="card">
-      <div className="card-header cc-header" style={{ borderLeft: `6px solid ${card.color}` }}>
-        <div className="cc-title">
-          <button className="icon-btn" aria-label="Edit card" onClick={() => setShowEdit((v) => !v)}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <div className="row-header" style={{ borderLeft: `6px solid ${card.color}` }}>
+        <div className="title-col">
+          <button className="icon-btn" aria-label="Edit card" title="Edit card" onClick={() => setShowEdit((v) => !v)}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
               <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="2"/>
               <rect x="3" y="8" width="18" height="3" fill="currentColor"/>
             </svg>
           </button>
-          <h3>{card.name}</h3>
+          <h3 className="truncate">{card.name}</h3>
         </div>
-        <div className="cc-actions">
-          <button className="btn" onClick={() => setShowAddTxn((v) => !v)}>
-            {showAddTxn ? "Close" : "Add Transaction"}
+        <div className="actions-col">
+          <button className="btn-outline btn-sm" onClick={() => setShowAddTxn((v) => !v)} title="Add transaction">
+            {/* + icon */}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
+              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            Add
           </button>
-          <button className="btn-danger-outline" onClick={onDeleteCard}>Delete</button>
+          <button className="btn-danger-outline btn-sm" onClick={onDeleteCard} title="Delete card">
+            {/* trash icon */}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
+              <path d="M3 6h18M8 6V4h8v2m-1 0v13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V6h10Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Delete
+          </button>
         </div>
       </div>
 
@@ -374,7 +396,7 @@ function InlineAddTxn({ cardId, onAdd }) {
         onChange={(e) => setNote(e.target.value)}
       />
       <button
-        className="btn"
+        className="btn btn-sm"
         onClick={() => {
           if (!amount) return;
           onAdd({
@@ -421,10 +443,10 @@ function TxnRow({ txn, cleared, onToggleCleared, onUpdateNote }) {
           {txn.note && !editing && <span className="note-pill">{txn.note}</span>}
         </div>
         <div className="txn-actions">
-          <button className="btn-outline" onClick={onToggleCleared}>
+          <button className="btn-outline btn-sm" onClick={onToggleCleared}>
             {cleared ? "Unclear" : "Clear"}
           </button>
-          <button className="btn-ghost" onClick={() => setEditing((v) => !v)}>
+          <button className="btn-ghost btn-sm" onClick={() => setEditing((v) => !v)}>
             {editing ? "Cancel" : "Note"}
           </button>
         </div>
@@ -439,7 +461,7 @@ function TxnRow({ txn, cleared, onToggleCleared, onUpdateNote }) {
             onChange={(e) => setNoteDraft(e.target.value)}
           />
           <button
-            className="btn"
+            className="btn btn-sm"
             onClick={() => {
               onUpdateNote(txn.id, noteDraft);
               setEditing(false);
