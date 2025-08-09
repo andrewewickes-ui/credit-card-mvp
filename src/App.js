@@ -4,12 +4,11 @@ import "./styles.css";
 const STORAGE_KEY = "vaultswipe_mvp1";
 
 /**
- * MVP 1 – Manual Mode (with Due Dates)
- * - Add cards with nickname, color, and monthly due day (1–31)
- * - Card header shows big Untransferred total + compact Add button
- * - Shows "Due: 15th (in 3 days)" under card name; highlights if due soon
- * - Edit panel: rename, recolor, change due day (Delete to live here later)
- * - Compact two-line transactions, Clear/Note aligned
+ * MVP 1 – Manual Mode (layout polish)
+ * - Snapshot "Pending to Transfer" aligns like Main Checking (label left, big amount right)
+ * - Card header: title + due date (left), big Untransferred (right)
+ * - "Add Transaction" moved below header (between title and transactions)
+ * - Compact transactions with aligned actions
  * - LocalStorage persistence
  */
 
@@ -114,18 +113,15 @@ export default function App() {
     const palette = ["#2563EB", "#7C3AED", "#0EA5E9", "#10B981", "#F59E0B"];
     return palette[Math.floor(Math.random() * palette.length)];
   }
-
   function sanitizeDueDay(d) {
     const n = Number(d);
     if (!Number.isFinite(n)) return 1;
     return Math.min(31, Math.max(1, Math.round(n)));
   }
-
   function ordinal(n) {
     const s = ["th", "st", "nd", "rd"], v = n % 100;
     return n + (s[(v - 20) % 10] || s[v] || s[0]);
   }
-
   function daysUntilNextDue(dueDay) {
     const now = new Date();
     const y = now.getFullYear();
@@ -139,11 +135,9 @@ export default function App() {
     }
     return Math.round((stripTime(target) - stripTime(now)) / 86400000);
   }
-
   function stripTime(d) {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate());
   }
-
   function daysInMonth(y, m) {
     return new Date(y, m + 1, 0).getDate();
   }
@@ -155,12 +149,18 @@ export default function App() {
         <div className="subtle">Snapshot first. Add details only when needed.</div>
       </div>
 
-      {/* Snapshot card */}
-      <div className="card toolbar">
-        <div className="toolbar-left">
-          <span className="pill">Pending to Transfer: ${totalPending.toFixed(2)}</span>
+      {/* Snapshot: align like checking (label left, big amount right) */}
+      <div className="card">
+        <div className="row-inline">
+          <div className="inline-left">
+            <h3>Pending to Transfer</h3>
+          </div>
+          <div className="inline-right">
+            <div className="amt-inline">
+              ${totalPending.toFixed(2)}
+            </div>
+          </div>
         </div>
-        <div className="toolbar-right" />
       </div>
 
       {/* Reminder */}
@@ -204,17 +204,17 @@ export default function App() {
         <div className="hint">Later: link this for real-time balance.</div>
       </div>
 
-      {/* Add Card (aligned actions column) */}
+      {/* Add Card */}
       <div className="card">
         <div className="row-header">
           <div className="title-col">
             <h3>Add Card</h3>
           </div>
-            <div className="actions-col">
-              <button className="btn btn-sm" onClick={() => setShowAddCard((v) => !v)}>
-                {showAddCard ? "Close" : "Add"}
-              </button>
-            </div>
+          <div className="actions-col">
+            <button className="btn btn-sm" onClick={() => setShowAddCard((v) => !v)}>
+              {showAddCard ? "Close" : "Add"}
+            </button>
+          </div>
         </div>
         {showAddCard && (
           <AddCardForm
@@ -321,6 +321,7 @@ function CardBlock({
 
   return (
     <div className="card">
+      {/* Header: title/due (left) + big untransferred (right) */}
       <div className="row-header" style={{ borderLeft: `6px solid ${card.color}` }}>
         <div className="title-col">
           <button
@@ -339,21 +340,25 @@ function CardBlock({
             <div className={`due-line ${dueSoon ? "due-soon" : ""}`}>{dueText}</div>
           </div>
         </div>
-        <div className="actions-col actions-col--tight">
+        <div className="actions-col actions-col--amt">
           <div className="amt-large" title="Untransferred amount">
             ${pendingTotal.toFixed(2)}
           </div>
-          <button
-            className="btn-outline btn-sm"
-            onClick={() => setShowAddTxn((v) => !v)}
-            title="Add transaction"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-            Add
-          </button>
         </div>
+      </div>
+
+      {/* Add button placed BETWEEN header and transaction list */}
+      <div className="between-row">
+        <button
+          className="btn-outline btn-sm"
+          onClick={() => setShowAddTxn((v) => !v)}
+          title="Add transaction"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
+            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          Add Transaction
+        </button>
       </div>
 
       {showEdit && (
@@ -408,7 +413,7 @@ function CardBlock({
         </div>
       )}
 
-      {/* List transactions */}
+      {/* Transactions */}
       {pending.length === 0 ? (
         <div className="muted">No untransferred items.</div>
       ) : (
