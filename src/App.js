@@ -4,12 +4,12 @@ import "./styles.css";
 const STORAGE_KEY = "vaultswipe_mvp1";
 
 /**
- * MVP 1 – Manual Mode (refined)
- * - Consistent right-side actions column for alignment
- * - Small buttons (less visual weight) + icons
- * - Add Card actions aligned with card rows
- * - Per-card Add Transaction inline
- * - Compact two-line transactions, Clear/Note
+ * MVP 1 – Manual Mode (with Due Dates)
+ * - Add cards with nickname, color, and monthly due day (1–31)
+ * - Card header shows big Untransferred total + compact Add button
+ * - Shows "Due: 15th (in 3 days)" under card name; highlights if due soon
+ * - Edit panel: rename, recolor, change due day (Delete to live here later)
+ * - Compact two-line transactions, Clear/Note aligned
  * - LocalStorage persistence
  */
 
@@ -18,8 +18,8 @@ export default function App() {
   const [checkingBalance, setCheckingBalance] = useState(0);
 
   const [cards, setCards] = useState([
-    { id: "c1", name: "Wells Fargo Cash Back", color: "#2563EB" },
-    { id: "c2", name: "United Mileage Plus", color: "#7C3AED" },
+    { id: "c1", name: "Wells Fargo Cash Back", color: "#2563EB", dueDay: 15 },
+    { id: "c2", name: "United Mileage Plus", color: "#7C3AED", dueDay: 7 },
   ]);
 
   const [txns, setTxns] = useState([
@@ -63,9 +63,10 @@ export default function App() {
   );
 
   // ---------- Actions ----------
-  const addCard = useCallback((name, color) => {
+  const addCard = useCallback((name, color, dueDay) => {
     const id = "c_" + Math.random().toString(36).slice(2);
-    setCards((prev) => [...prev, { id, name, color: color || pickColor() }]);
+    const dd = sanitizeDueDay(dueDay);
+    setCards((prev) => [...prev, { id, name, color: color || pickColor(), dueDay: dd }]);
   }, []);
 
   const renameCard = useCallback((cardId, newName) => {
@@ -76,9 +77,9 @@ export default function App() {
     setCards((prev) => prev.map((c) => (c.id === cardId ? { ...c, color: newColor } : c)));
   }, []);
 
-  const deleteCard = useCallback((cardId) => {
-    setCards((prev) => prev.filter((c) => c.id !== cardId));
-    setTxns((prev) => prev.filter((t) => t.cardId !== cardId));
+  const changeDueDay = useCallback((cardId, dueDay) => {
+    const dd = sanitizeDueDay(dueDay);
+    setCards((prev) => prev.map((c) => (c.id === cardId ? { ...c, dueDay: dd } : c)));
   }, []);
 
   const addTxn = useCallback((payload) => {
@@ -114,6 +115,39 @@ export default function App() {
     return palette[Math.floor(Math.random() * palette.length)];
   }
 
+  function sanitizeDueDay(d) {
+    const n = Number(d);
+    if (!Number.isFinite(n)) return 1;
+    return Math.min(31, Math.max(1, Math.round(n)));
+  }
+
+  function ordinal(n) {
+    const s = ["th", "st", "nd", "rd"], v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+
+  function daysUntilNextDue(dueDay) {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const candidate = new Date(y, m, Math.min(dueDay, daysInMonth(y, m)));
+    let target = candidate;
+    if (candidate < stripTime(now)) {
+      const m2 = m === 11 ? 0 : m + 1;
+      const y2 = m === 11 ? y + 1 : y;
+      target = new Date(y2, m2, Math.min(dueDay, daysInMonth(y2, m2)));
+    }
+    return Math.round((stripTime(target) - stripTime(now)) / 86400000);
+  }
+
+  function stripTime(d) {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+
+  function daysInMonth(y, m) {
+    return new Date(y, m + 1, 0).getDate();
+  }
+
   return (
     <div className="container">
       <div className="topbar">
@@ -137,36 +171,36 @@ export default function App() {
         </div>
       )}
 
-      {/* Checking */}
+      {/* Checking (compact inline editor to the right) */}
       <div className="card">
-        <div className="row-header">
-          <div className="title-col">
+        <div className="row-inline">
+          <div className="inline-left">
             <h3>Main Checking Account</h3>
+            <div className="muted">Available Balance</div>
           </div>
-          <div className="actions-col">
-            <button className="btn-outline btn-sm" onClick={() => setShowEditChecking((v) => !v)}>
-              {showEditChecking ? "Close" : "Edit"}
-            </button>
+          <div className="inline-right">
+            {!showEditChecking ? (
+              <>
+                <div className="amt-inline">
+                  ${Number(checkingBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </div>
+                <button className="btn-outline btn-xs" onClick={() => setShowEditChecking(true)}>Edit</button>
+              </>
+            ) : (
+              <div className="inline-edit">
+                <input
+                  className="input-sm"
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={checkingBalance}
+                  onChange={(e) => setCheckingBalance(e.target.value)}
+                />
+                <button className="btn btn-xs" onClick={() => setShowEditChecking(false)}>Save</button>
+              </div>
+            )}
           </div>
         </div>
-
-        <div className="account-row">
-          <span>Available Balance</span>
-          <span>${Number(checkingBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-        </div>
-
-        {showEditChecking && (
-          <div className="row mt8 wrap">
-            <input
-              type="number"
-              step="0.01"
-              placeholder="Enter balance e.g. 2187.04"
-              value={checkingBalance}
-              onChange={(e) => setCheckingBalance(e.target.value)}
-            />
-            <button className="btn btn-sm">Save</button>
-          </div>
-        )}
         <div className="hint">Later: link this for real-time balance.</div>
       </div>
 
@@ -176,33 +210,47 @@ export default function App() {
           <div className="title-col">
             <h3>Add Card</h3>
           </div>
-          <div className="actions-col">
-            <button className="btn btn-sm" onClick={() => setShowAddCard((v) => !v)}>
-              {showAddCard ? "Close" : "Add"}
-            </button>
-          </div>
+            <div className="actions-col">
+              <button className="btn btn-sm" onClick={() => setShowAddCard((v) => !v)}>
+                {showAddCard ? "Close" : "Add"}
+              </button>
+            </div>
         </div>
-        {showAddCard && <AddCardForm onAdd={(name, color) => { addCard(name, color); setShowAddCard(false); }} />}
+        {showAddCard && (
+          <AddCardForm
+            onAdd={(name, color, dueDay) => {
+              addCard(name, color, dueDay);
+              setShowAddCard(false);
+            }}
+          />
+        )}
       </div>
 
       {/* Cards */}
       {cards.length === 0 ? (
         <div className="card"><em>Add a card to get started.</em></div>
       ) : (
-        cards.map((c) => (
-          <CardBlock
-            key={c.id}
-            card={c}
-            txns={txns.filter((t) => t.cardId === c.id)}
-            pendingTotal={pendingByCard[c.id] || 0}
-            onAddTxn={addTxn}
-            onToggleCleared={toggleCleared}
-            onUpdateNote={updateTxnNote}
-            onRename={renameCard}
-            onRecolor={recolorCard}
-            onDeleteCard={() => deleteCard(c.id)}
-          />
-        ))
+        cards.map((c) => {
+          const dueIn = daysUntilNextDue(c.dueDay || 1);
+          const dueText = `Due: ${ordinal(c.dueDay || 1)}${Number.isFinite(dueIn) ? ` (in ${dueIn} day${dueIn === 1 ? "" : "s"})` : ""}`;
+          const dueSoon = dueIn <= 5;
+          return (
+            <CardBlock
+              key={c.id}
+              card={c}
+              dueText={dueText}
+              dueSoon={dueSoon}
+              txns={txns.filter((t) => t.cardId === c.id)}
+              pendingTotal={pendingByCard[c.id] || 0}
+              onAddTxn={addTxn}
+              onToggleCleared={toggleCleared}
+              onUpdateNote={updateTxnNote}
+              onRename={renameCard}
+              onRecolor={recolorCard}
+              onChangeDueDay={changeDueDay}
+            />
+          );
+        })
       )}
     </div>
   );
@@ -213,6 +261,7 @@ export default function App() {
 function AddCardForm({ onAdd }) {
   const [name, setName] = useState("");
   const [color, setColor] = useState("");
+  const [dueDay, setDueDay] = useState("");
 
   return (
     <div className="row wrap">
@@ -227,13 +276,22 @@ function AddCardForm({ onAdd }) {
         value={color}
         onChange={(e) => setColor(e.target.value)}
       />
+      <input
+        className="input-sm"
+        type="number"
+        min="1"
+        max="31"
+        placeholder="Due day (1–31)"
+        value={dueDay}
+        onChange={(e) => setDueDay(e.target.value)}
+      />
       <button
         className="btn btn-sm"
         onClick={() => {
           if (!name.trim()) return;
-          onAdd(name.trim(), color.trim() || undefined);
-          setName("");
-          setColor("");
+          const dd = dueDay ? Number(dueDay) : 1;
+          onAdd(name.trim(), color.trim() || undefined, dd);
+          setName(""); setColor(""); setDueDay("");
         }}
       >
         Save
@@ -244,6 +302,8 @@ function AddCardForm({ onAdd }) {
 
 function CardBlock({
   card,
+  dueText,
+  dueSoon,
   txns,
   pendingTotal,
   onAddTxn,
@@ -251,7 +311,7 @@ function CardBlock({
   onUpdateNote,
   onRename,
   onRecolor,
-  onDeleteCard,
+  onChangeDueDay,
 }) {
   const [showAddTxn, setShowAddTxn] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
@@ -263,28 +323,35 @@ function CardBlock({
     <div className="card">
       <div className="row-header" style={{ borderLeft: `6px solid ${card.color}` }}>
         <div className="title-col">
-          <button className="icon-btn" aria-label="Edit card" title="Edit card" onClick={() => setShowEdit((v) => !v)}>
+          <button
+            className="icon-btn"
+            aria-label="Edit card"
+            title="Edit card"
+            onClick={() => setShowEdit((v) => !v)}
+          >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
               <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="2"/>
               <rect x="3" y="8" width="18" height="3" fill="currentColor"/>
             </svg>
           </button>
-          <h3 className="truncate">{card.name}</h3>
+          <div className="title-stack">
+            <h3 className="truncate">{card.name}</h3>
+            <div className={`due-line ${dueSoon ? "due-soon" : ""}`}>{dueText}</div>
+          </div>
         </div>
-        <div className="actions-col">
-          <button className="btn-outline btn-sm" onClick={() => setShowAddTxn((v) => !v)} title="Add transaction">
-            {/* + icon */}
+        <div className="actions-col actions-col--tight">
+          <div className="amt-large" title="Untransferred amount">
+            ${pendingTotal.toFixed(2)}
+          </div>
+          <button
+            className="btn-outline btn-sm"
+            onClick={() => setShowAddTxn((v) => !v)}
+            title="Add transaction"
+          >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
               <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
             </svg>
             Add
-          </button>
-          <button className="btn-danger-outline btn-sm" onClick={onDeleteCard} title="Delete card">
-            {/* trash icon */}
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-              <path d="M3 6h18M8 6V4h8v2m-1 0v13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V6h10Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Delete
           </button>
         </div>
       </div>
@@ -312,7 +379,21 @@ function CardBlock({
                 }}
               />
             </label>
+            <label className="field" style={{ maxWidth: 160 }}>
+              <span className="lbl">Payment due day (1–31)</span>
+              <input
+                type="number"
+                min="1"
+                max="31"
+                defaultValue={card.dueDay || 1}
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v) onChangeDueDay(card.id, Number(v));
+                }}
+              />
+            </label>
           </div>
+          <div className="hint">Destructive actions like Delete will live here later.</div>
         </div>
       )}
 
@@ -327,29 +408,23 @@ function CardBlock({
         </div>
       )}
 
-      <div className="account-row">
-        <strong>Untransferred (Pending):</strong>
-        <span>${pendingTotal.toFixed(2)}</span>
-      </div>
-
-      <Section title="Pending">
-        {pending.length === 0 ? (
-          <div className="muted">No pending items.</div>
-        ) : (
-          pending.map((t) => (
-            <TxnRow
-              key={t.id}
-              txn={t}
-              onToggleCleared={() => onToggleCleared(t.id)}
-              onUpdateNote={onUpdateNote}
-            />
-          ))
-        )}
-      </Section>
+      {/* List transactions */}
+      {pending.length === 0 ? (
+        <div className="muted">No untransferred items.</div>
+      ) : (
+        pending.map((t) => (
+          <TxnRow
+            key={t.id}
+            txn={t}
+            onToggleCleared={() => onToggleCleared(t.id)}
+            onUpdateNote={(note) => onUpdateNote(t.id, note)}
+          />
+        ))
+      )}
 
       <details className="details">
         <summary>Cleared</summary>
-        <Section>
+        <div className="section">
           {cleared.length === 0 ? (
             <div className="muted">Nothing cleared yet.</div>
           ) : (
@@ -359,11 +434,11 @@ function CardBlock({
                 txn={t}
                 cleared
                 onToggleCleared={() => onToggleCleared(t.id)}
-                onUpdateNote={onUpdateNote}
+                onUpdateNote={(note) => onUpdateNote(t.id, note)}
               />
             ))
           )}
-        </Section>
+        </div>
       </details>
     </div>
   );
@@ -417,15 +492,6 @@ function InlineAddTxn({ cardId, onAdd }) {
   );
 }
 
-function Section({ title, children }) {
-  return (
-    <div className="section">
-      {title && <div className="section-title">{title}</div>}
-      {children}
-    </div>
-  );
-}
-
 function TxnRow({ txn, cleared, onToggleCleared, onUpdateNote }) {
   const [editing, setEditing] = useState(false);
   const [noteDraft, setNoteDraft] = useState(txn.note || "");
@@ -437,10 +503,15 @@ function TxnRow({ txn, cleared, onToggleCleared, onUpdateNote }) {
         <div className="txn-amount">${Number(txn.amount).toFixed(2)}</div>
       </div>
 
+      {/* Fixed-height second line so actions align, note or not */}
       <div className="txn-line2">
         <div className="txn-meta-left">
           <span className="muted">{txn.date}</span>
-          {txn.note && !editing && <span className="note-pill">{txn.note}</span>}
+          {txn.note && !editing ? (
+            <span className="note-pill">{txn.note}</span>
+          ) : (
+            <span className="note-placeholder" />
+          )}
         </div>
         <div className="txn-actions">
           <button className="btn-outline btn-sm" onClick={onToggleCleared}>
@@ -463,7 +534,7 @@ function TxnRow({ txn, cleared, onToggleCleared, onUpdateNote }) {
           <button
             className="btn btn-sm"
             onClick={() => {
-              onUpdateNote(txn.id, noteDraft);
+              onUpdateNote(noteDraft);
               setEditing(false);
             }}
           >
