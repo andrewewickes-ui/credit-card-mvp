@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import "./styles.css";
 
-const STORAGE_KEY = "vaultswipe_mvp4";
+const STORAGE_KEY = "vaultswipe_mvp5";
 
 /**
  * Manual MVP with:
  * - Main Checking at top
- * - A centered "Transfer" button that opens a dialog for Main <-> Vault transfers (swap direction)
+ * - Inline "Transfer" toggle panel located directly under the button (between Main and the snapshot)
  * - Two-column snapshot: Vault Account | Total Card Balances (sum of UNCLEARED txns)
  * - "Difference" = Total Card Balances - Vault Account (never negative)
  * - Card blocks with: View Transactions, Add Transaction (collapsible), Edit
@@ -32,7 +32,7 @@ export default function App() {
 
   const [showAddCard, setShowAddCard] = useState(false);
 
-  // Transfer dialog state
+  // Inline transfer panel state
   const [showTransfer, setShowTransfer] = useState(false);
   const [transferAmt, setTransferAmt] = useState("");
   // direction: "toVault" = Main -> Vault, "toMain" = Vault -> Main
@@ -139,7 +139,7 @@ export default function App() {
     setVaultBalance((b) => Number((b + amt).toFixed(2)));
   }, []);
 
-  // Transfer dialog actions
+  // Inline transfer actions
   const swapDirection = () => {
     setTransferDir((d) => (d === "toVault" ? "toMain" : "toVault"));
   };
@@ -220,12 +220,45 @@ export default function App() {
           </div>
         </div>
 
-        {/* Transfer button (centered) */}
+        {/* Transfer button (centered, inline panel appears directly below it) */}
         <div className="transfer-center">
-          <button className="btn-outline btn-sm" onClick={() => setShowTransfer(true)}>
-            Transfer between Main ↔ Vault
+          <button className="btn-outline btn-sm" onClick={() => setShowTransfer(v => !v)}>
+            Transfer
           </button>
         </div>
+
+        {showTransfer && (
+          <div className="transfer-inline">
+            <div className="transfer-row">
+              <div className="transfer-endpoint">
+                <div className="endpoint-label">{transferDir === "toVault" ? "From" : "To"}</div>
+                <div className="endpoint-value">Main Checking</div>
+              </div>
+
+              <button className="swap-btn" onClick={swapDirection} title="Swap direction">↔</button>
+
+              <div className="transfer-endpoint">
+                <div className="endpoint-label">{transferDir === "toVault" ? "To" : "From"}</div>
+                <div className="endpoint-value">Vault Account</div>
+              </div>
+            </div>
+
+            <div className="transfer-amount">
+              <input
+                className="input-7ch"
+                type="number"
+                step="0.01"
+                placeholder="Amount"
+                value={transferAmt}
+                onChange={(e) => setTransferAmt(e.target.value)}
+              />
+              <div className="transfer-buttons">
+                <button className="btn-outline btn-sm" onClick={() => setShowTransfer(false)}>Cancel</button>
+                <button className="btn btn-sm" onClick={performTransfer}>Transfer</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Two columns: Vault | Total Card Balances */}
         <div className="two-col">
@@ -307,48 +340,6 @@ export default function App() {
           />
         )}
       </div>
-
-      {/* Transfer Dialog */}
-      {showTransfer && (
-        <div className="modal-overlay" onClick={() => setShowTransfer(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Transfer</h3>
-            <div className="modal-body">
-              <div className="transfer-row">
-                <div className="transfer-endpoint">
-                  <div className="endpoint-label">{transferDir === "toVault" ? "From" : "To"}</div>
-                  <div className="endpoint-value">Main Checking</div>
-                </div>
-
-                <button className="swap-btn" onClick={swapDirection} title="Swap direction">
-                  ↔
-                </button>
-
-                <div className="transfer-endpoint">
-                  <div className="endpoint-label">{transferDir === "toVault" ? "To" : "From"}</div>
-                  <div className="endpoint-value">Vault Account</div>
-                </div>
-              </div>
-
-              <div className="row">
-                <input
-                  className="flex1"
-                  type="number"
-                  step="0.01"
-                  placeholder="Amount"
-                  value={transferAmt}
-                  onChange={(e) => setTransferAmt(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="modal-actions">
-              <button className="btn-outline btn-sm" onClick={() => setShowTransfer(false)}>Cancel</button>
-              <button className="btn btn-sm" onClick={performTransfer}>Transfer</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
