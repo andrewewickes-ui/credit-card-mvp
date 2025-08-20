@@ -64,7 +64,7 @@ input, select, button {
 .input-sm { width: 140px; padding: 6px 8px; font-size: 14px; }
 .amt-inline { font-weight: 800; font-size: 20px; }
 
-/* ===== Two-column snapshot under Main Checking ===== */
+/* ===== Two-column snapshot ===== */
 .two-col {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -88,6 +88,13 @@ input, select, button {
   margin-top: 8px; color: #374151;
 }
 
+/* ===== Quick transfer bar ===== */
+.transfer-bar {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 12px;
+}
+.transfer-buttons { display: flex; gap: 8px; }
+
 /* ===== Card headers / aligned amount column ===== */
 .row-header {
   display: flex; align-items: center; padding-left: 8px;
@@ -110,7 +117,7 @@ input, select, button {
 }
 .icon-btn:hover { background: #f9fafb; }
 
-/* Controls row under header: left + right alignment */
+/* Controls row under header */
 .controls-row {
   display: flex; align-items: center; justify-content: space-between;
   margin: 4px 0 10px;
