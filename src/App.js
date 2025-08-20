@@ -1,40 +1,39 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import "./styles.css";
 
-const STORAGE_KEY = "vaultswipe_mvp2";
+const STORAGE_KEY = "vaultswipe_mvp3";
 
 /**
- * MVP Manual Mode (polished)
+ * Manual MVP with:
  * - Main Checking at top
- * - Beneath it: two columns => Vault Account | Total Card Balances
- * - Pending manual transfers note under the two columns
- * - Cards list below; "Add Card" section comes AFTER the existing cards
- * - Each card:
- *    - Header: title + due date (left), Untransferred total (right)
- *    - Row under header: "View Transactions" (left) + "Add Transaction" button (right)
- *    - Transactions are hidden until toggled open
- *    - Add Transaction form collapses after "Add"
+ * - Two-column snapshot: Vault Account | Total Card Balances (sum of UNCLEARED txns)
+ * - Pending manual transfers = Total Card Balances - Vault Account
+ * - Card blocks with: View Transactions (toggle), Add Transaction (collapsible), Edit
+ * - Transaction actions order: Vault | Note | Clear
+ * - Add Card is now collapsible (button reveals form below all cards)
+ * - Top-level simple transfer between Main <-> Vault
  */
 
 export default function App() {
   // ---------- State ----------
-  const [checkingBalance, setCheckingBalance] = useState(0);
+  const [checkingBalance, setCheckingBalance] = useState(2187.04);
   const [vaultBalance, setVaultBalance] = useState(0);
 
-  // Each card may optionally track a "currentBalance" (statement/current card balance).
-  // If provided, we'll use it for "Total Card Balances". If not, we fall back to sum of pending txns.
   const [cards, setCards] = useState([
-    { id: "c1", name: "Wells Fargo Cash Back", color: "#2563EB", dueDay: 15, currentBalance: 898.77 },
-    { id: "c2", name: "United Mileage Plus", color: "#7C3AED", dueDay: 7, currentBalance: 452.60 },
+    { id: "c1", name: "Wells Fargo Cash Back", color: "#2563EB", dueDay: 15 },
+    { id: "c2", name: "United Mileage Plus", color: "#7C3AED", dueDay: 7 }
   ]);
 
   const [txns, setTxns] = useState([
     { id: "t1", cardId: "c1", date: "2025-08-01", merchant: "Starbucks", amount: 12.57, note: "", cleared: false },
-    { id: "t2", cardId: "c1", date: "2025-07-30", merchant: "Amazon", amount: 40.0, note: "Waiting refund", cleared: false },
-    { id: "t3", cardId: "c2", date: "2025-07-28", merchant: "Lyft", amount: 18.4, note: "", cleared: false },
+    { id: "t2", cardId: "c1", date: "2025-07-30", merchant: "Amazon", amount: 40.00, note: "Waiting refund", cleared: false },
+    { id: "t3", cardId: "c2", date: "2025-07-28", merchant: "Lyft", amount: 18.40, note: "", cleared: false }
   ]);
 
   const [showAddCard, setShowAddCard] = useState(false);
+
+  // Quick transfer amount (Main <-> Vault)
+  const [transferAmt, setTransferAmt] = useState("");
 
   // ---------- Persistence ----------
   useEffect(() => {
@@ -66,41 +65,28 @@ export default function App() {
     return map;
   }, [cards, txns]);
 
-  const anyHasCurrentBalance = useMemo(
-    () => cards.some((c) => Number.isFinite(Number(c.currentBalance))),
-    [cards]
+  // Total Card Balances = SUM of all pending (uncleared) txn amounts
+  const totalCardBalances = useMemo(
+    () => Object.values(pendingByCard).reduce((a, b) => a + b, 0),
+    [pendingByCard]
   );
 
-  // Total Card Balances preference:
-  //  - If any card has a "currentBalance" set, sum those.
-  //  - Otherwise, sum the pending (uncleared) transactions per card.
-  const totalCardBalances = useMemo(() => {
-    if (anyHasCurrentBalance) {
-      return cards.reduce((sum, c) => sum + Number(c.currentBalance || 0), 0);
-    }
-    return Object.values(pendingByCard).reduce((a, b) => a + b, 0);
-  }, [cards, anyHasCurrentBalance, pendingByCard]);
-
   const pendingDifference = useMemo(() => {
-    // "Pending manual transfers" concept:
-    // difference between total card balances and vault balance (if positive)
     const diff = totalCardBalances - Number(vaultBalance || 0);
     return diff > 0 ? diff : 0;
   }, [totalCardBalances, vaultBalance]);
 
   // ---------- Actions ----------
-  const addCard = useCallback((name, color, dueDay, currentBalance) => {
+  const addCard = useCallback((name, color, dueDay) => {
     const id = "c_" + Math.random().toString(36).slice(2);
-    const dd = sanitizeDueDay(dueDay);
     setCards((prev) => [
       ...prev,
       {
         id,
         name: name || "New Card",
         color: color || pickColor(),
-        dueDay: dd,
-        currentBalance: Number.isFinite(Number(currentBalance)) ? Number(currentBalance) : 0,
-      },
+        dueDay: sanitizeDueDay(dueDay)
+      }
     ]);
   }, []);
 
@@ -117,10 +103,6 @@ export default function App() {
     setCards((prev) => prev.map((c) => (c.id === cardId ? { ...c, dueDay: dd } : c)));
   }, []);
 
-  const setCardCurrentBalance = useCallback((cardId, amount) => {
-    setCards((prev) => prev.map((c) => (c.id === cardId ? { ...c, currentBalance: Number(amount || 0) } : c)));
-  }, []);
-
   const addTxn = useCallback((payload) => {
     const id = "t_" + Math.random().toString(36).slice(2);
     setTxns((prev) => [
@@ -132,8 +114,8 @@ export default function App() {
         merchant: payload.merchant || "",
         amount: Number(payload.amount || 0),
         note: payload.note || "",
-        cleared: false,
-      },
+        cleared: false
+      }
     ]);
   }, []);
 
@@ -144,6 +126,30 @@ export default function App() {
   const updateTxnNote = useCallback((txnId, note) => {
     setTxns((prev) => prev.map((t) => (t.id === txnId ? { ...t, note } : t)));
   }, []);
+
+  // Click "Vault" on a txn: move that amount from Main -> Vault
+  const vaultTxnAmount = useCallback((amount) => {
+    const amt = Number(amount || 0);
+    if (!amt || amt <= 0) return;
+    setCheckingBalance((b) => Number((b - amt).toFixed(2)));
+    setVaultBalance((b) => Number((b + amt).toFixed(2)));
+  }, []);
+
+  // Quick transfer top control
+  const transferToVault = () => {
+    const amt = Number(transferAmt || 0);
+    if (!amt || amt <= 0) return;
+    setCheckingBalance((b) => Number((b - amt).toFixed(2)));
+    setVaultBalance((b) => Number((b + amt).toFixed(2)));
+    setTransferAmt("");
+  };
+  const transferToMain = () => {
+    const amt = Number(transferAmt || 0);
+    if (!amt || amt <= 0) return;
+    setVaultBalance((b) => Number((b - amt).toFixed(2)));
+    setCheckingBalance((b) => Number((b + amt).toFixed(2)));
+    setTransferAmt("");
+  };
 
   // ---------- UI Helpers ----------
   function pickColor() {
@@ -186,7 +192,7 @@ export default function App() {
         <div className="subtle">Snapshot first. Details on demand.</div>
       </div>
 
-      {/* Main Checking */}
+      {/* Main Checking Card */}
       <div className="card">
         <div className="row-inline">
           <div className="inline-left">
@@ -197,38 +203,26 @@ export default function App() {
             <div className="amt-inline">
               ${Number(checkingBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </div>
-            <InlineEditNumber
-              label="Edit"
-              value={checkingBalance}
-              onChange={setCheckingBalance}
-              small
-            />
+            <InlineEditNumber label="Edit" value={checkingBalance} onChange={setCheckingBalance} small />
           </div>
         </div>
 
-        {/* Two columns: Vault Account | Total Card Balances */}
+        {/* Two columns: Vault | Total Card Balances */}
         <div className="two-col">
           <div className="mini-card">
             <div className="mini-head">
               <span>Vault Account</span>
-              <InlineEditNumber
-                label="Edit"
-                value={vaultBalance}
-                onChange={setVaultBalance}
-                small
-              />
+              <InlineEditNumber label="Edit" value={vaultBalance} onChange={setVaultBalance} small />
             </div>
             <div className="mini-amt">
               ${Number(vaultBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </div>
           </div>
+
           <div className="mini-card">
             <div className="mini-head">
               <span>Total Card Balances</span>
-              {/* Show source hint if using pending fallback */}
-              <span className="hint">
-                {anyHasCurrentBalance ? "from card balances" : "from pending items"}
-              </span>
+              <span className="hint">uncleared items</span>
             </div>
             <div className="mini-amt">
               ${Number(totalCardBalances || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -236,12 +230,33 @@ export default function App() {
           </div>
         </div>
 
+        {/* Pending manual transfers */}
         <div className="pending-note">
           Pending manual transfers: <strong>${pendingDifference.toFixed(2)}</strong>
         </div>
+
+        {/* Bi-directional transfer controls */}
+        <div className="transfer-bar">
+          <input
+            className="input-sm"
+            type="number"
+            step="0.01"
+            placeholder="Amount"
+            value={transferAmt}
+            onChange={(e) => setTransferAmt(e.target.value)}
+          />
+          <div className="transfer-buttons">
+            <button className="btn-outline btn-sm" onClick={transferToVault} title="Main → Vault">
+              Main → Vault
+            </button>
+            <button className="btn-outline btn-sm" onClick={transferToMain} title="Vault → Main">
+              Vault → Main
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Cards */}
+      {/* Cards list */}
       {cards.length === 0 ? (
         <div className="card"><em>Add a card to get started.</em></div>
       ) : (
@@ -265,25 +280,32 @@ export default function App() {
               onRename={renameCard}
               onRecolor={recolorCard}
               onChangeDueDay={changeDueDay}
-              onSetCardCurrentBalance={setCardCurrentBalance}
+              onVaultTxnAmount={vaultTxnAmount}
             />
           );
         })
       )}
 
-      {/* Add Card (moved BELOW cards) */}
+      {/* Add Card (collapsible) */}
       <div className="card">
         <div className="row-header">
           <div className="title-col">
             <h3>Add Card</h3>
           </div>
+          <div className="actions-col">
+            <button className="btn-outline btn-sm" onClick={() => setShowAddCard(v => !v)}>
+              {showAddCard ? "Hide" : "Add Card"}
+            </button>
+          </div>
         </div>
-        <AddCardForm
-          onAdd={(name, color, dueDay, currentBalance) => {
-            addCard(name, color, dueDay, currentBalance);
-            setShowAddCard(false);
-          }}
-        />
+        {showAddCard && (
+          <AddCardForm
+            onAdd={(name, color, dueDay) => {
+              addCard(name, color, dueDay);
+              setShowAddCard(false); // collapse after add
+            }}
+          />
+        )}
       </div>
     </div>
   );
@@ -330,7 +352,6 @@ function AddCardForm({ onAdd }) {
   const [name, setName] = useState("");
   const [color, setColor] = useState("");
   const [dueDay, setDueDay] = useState("");
-  const [currentBalance, setCurrentBalance] = useState("");
 
   return (
     <div className="row wrap">
@@ -354,20 +375,12 @@ function AddCardForm({ onAdd }) {
         value={dueDay}
         onChange={(e) => setDueDay(e.target.value)}
       />
-      <input
-        className="input-sm"
-        type="number"
-        step="0.01"
-        placeholder="Card balance (optional)"
-        value={currentBalance}
-        onChange={(e) => setCurrentBalance(e.target.value)}
-      />
       <button
         className="btn btn-sm"
         onClick={() => {
           if (!name.trim()) return;
-          onAdd(name.trim(), color.trim() || undefined, dueDay ? Number(dueDay) : 1, currentBalance);
-          setName(""); setColor(""); setDueDay(""); setCurrentBalance("");
+          onAdd(name.trim(), color.trim() || undefined, dueDay ? Number(dueDay) : 1);
+          setName(""); setColor(""); setDueDay("");
         }}
       >
         Save
@@ -388,7 +401,7 @@ function CardBlock({
   onRename,
   onRecolor,
   onChangeDueDay,
-  onSetCardCurrentBalance,
+  onVaultTxnAmount
 }) {
   const [showTransactions, setShowTransactions] = useState(false);
   const [showAddTxn, setShowAddTxn] = useState(false);
@@ -424,18 +437,11 @@ function CardBlock({
 
       {/* Controls row: View Transactions (left) + Add Transaction (right) */}
       <div className="controls-row">
-        <button
-          className="linkish"
-          onClick={() => setShowTransactions((v) => !v)}
-        >
-          {showTransactions ? "Hide Transactions" : "View Transactions"}
+        <button className="linkish" onClick={() => setShowTransactions((v) => !v)}>
+          {showTransactions ? `Hide Transactions` : `View Transactions (${txns.length})`}
         </button>
 
-        <button
-          className="btn-outline btn-sm"
-          onClick={() => setShowAddTxn((v) => !v)}
-          title="Add transaction"
-        >
+        <button className="btn-outline btn-sm" onClick={() => setShowAddTxn((v) => !v)} title="Add transaction">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
             <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
           </svg>
@@ -480,15 +486,6 @@ function CardBlock({
                 }}
               />
             </label>
-            <label className="field" style={{ maxWidth: 200 }}>
-              <span className="lbl">Card balance (optional)</span>
-              <input
-                type="number"
-                step="0.01"
-                defaultValue={card.currentBalance ?? ""}
-                onBlur={(e) => onSetCardCurrentBalance(card.id, e.target.value)}
-              />
-            </label>
           </div>
         </div>
       )}
@@ -518,6 +515,7 @@ function CardBlock({
                 <TxnRow
                   key={t.id}
                   txn={t}
+                  onVault={() => onVaultTxnAmount(t.amount)}
                   onToggleCleared={() => onToggleCleared(t.id)}
                   onUpdateNote={(note) => onUpdateNote(t.id, note)}
                 />
@@ -564,9 +562,9 @@ function InlineAddTxn({ cardId, onAdd }) {
             date: new Date().toISOString().slice(0, 10),
             merchant,
             amount,
-            note,
+            note
           });
-          // local cleanup; parent collapses the whole form
+          // parent collapses the whole form; we clear local state
           setMerchant("");
           setAmount("");
           setNote("");
@@ -578,7 +576,7 @@ function InlineAddTxn({ cardId, onAdd }) {
   );
 }
 
-function TxnRow({ txn, onToggleCleared, onUpdateNote }) {
+function TxnRow({ txn, onVault, onToggleCleared, onUpdateNote }) {
   const [editing, setEditing] = useState(false);
   const [noteDraft, setNoteDraft] = useState(txn.note || "");
 
@@ -599,11 +597,15 @@ function TxnRow({ txn, onToggleCleared, onUpdateNote }) {
           )}
         </div>
         <div className="txn-actions">
-          <button className="btn-outline btn-sm" onClick={onToggleCleared}>
-            {txn.cleared ? "Unclear" : "Clear"}
+          {/* New order: Vault | Note | Clear */}
+          <button className="btn-outline btn-sm" onClick={onVault} title="Move amount to Vault">
+            Vault
           </button>
           <button className="btn-ghost btn-sm" onClick={() => setEditing((v) => !v)}>
             {editing ? "Cancel" : "Note"}
+          </button>
+          <button className="btn-outline btn-sm" onClick={onToggleCleared}>
+            {txn.cleared ? "Unclear" : "Clear"}
           </button>
         </div>
       </div>
