@@ -1,552 +1,158 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
-import "./styles.css";
-
-const STORAGE_KEY = "vaultswipe_mvp1";
-
-/**
- * MVP 1 – Manual Mode (layout polish)
- * - Snapshot "Pending to Transfer" aligns like Main Checking (label left, big amount right)
- * - Card header: title + due date (left), big Untransferred (right)
- * - "Add Transaction" moved below header (between title and transactions)
- * - Compact transactions with aligned actions
- * - LocalStorage persistence
- */
-
-export default function App() {
-  // ---------- State ----------
-  const [checkingBalance, setCheckingBalance] = useState(0);
-
-  const [cards, setCards] = useState([
-    { id: "c1", name: "Wells Fargo Cash Back", color: "#2563EB", dueDay: 15 },
-    { id: "c2", name: "United Mileage Plus", color: "#7C3AED", dueDay: 7 },
-  ]);
-
-  const [txns, setTxns] = useState([
-    { id: "t1", cardId: "c1", date: "2025-07-30", merchant: "Starbucks", amount: 12.57, note: "", cleared: false },
-    { id: "t2", cardId: "c1", date: "2025-07-29", merchant: "Amazon", amount: 40.0, note: "Waiting for refund", cleared: false },
-    { id: "t3", cardId: "c2", date: "2025-07-28", merchant: "Lyft", amount: 18.4, note: "", cleared: false },
-  ]);
-
-  const [showEditChecking, setShowEditChecking] = useState(false);
-  const [showAddCard, setShowAddCard] = useState(false);
-
-  // ---------- Persistence ----------
-  useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw);
-      if (parsed.checkingBalance != null) setCheckingBalance(parsed.checkingBalance);
-      if (Array.isArray(parsed.cards)) setCards(parsed.cards);
-      if (Array.isArray(parsed.txns)) setTxns(parsed.txns);
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ checkingBalance, cards, txns }));
-  }, [checkingBalance, cards, txns]);
-
-  // ---------- Derived totals ----------
-  const pendingByCard = useMemo(() => {
-    const map = {};
-    cards.forEach((c) => (map[c.id] = 0));
-    txns.forEach((t) => {
-      if (!t.cleared) map[t.cardId] = (map[t.cardId] || 0) + Number(t.amount || 0);
-    });
-    return map;
-  }, [cards, txns]);
-
-  const totalPending = useMemo(
-    () => Object.values(pendingByCard).reduce((a, b) => a + b, 0),
-    [pendingByCard]
-  );
-
-  // ---------- Actions ----------
-  const addCard = useCallback((name, color, dueDay) => {
-    const id = "c_" + Math.random().toString(36).slice(2);
-    const dd = sanitizeDueDay(dueDay);
-    setCards((prev) => [...prev, { id, name, color: color || pickColor(), dueDay: dd }]);
-  }, []);
-
-  const renameCard = useCallback((cardId, newName) => {
-    setCards((prev) => prev.map((c) => (c.id === cardId ? { ...c, name: newName } : c)));
-  }, []);
-
-  const recolorCard = useCallback((cardId, newColor) => {
-    setCards((prev) => prev.map((c) => (c.id === cardId ? { ...c, color: newColor } : c)));
-  }, []);
-
-  const changeDueDay = useCallback((cardId, dueDay) => {
-    const dd = sanitizeDueDay(dueDay);
-    setCards((prev) => prev.map((c) => (c.id === cardId ? { ...c, dueDay: dd } : c)));
-  }, []);
-
-  const addTxn = useCallback((payload) => {
-    const id = "t_" + Math.random().toString(36).slice(2);
-    setTxns((prev) => [
-      ...prev,
-      {
-        id,
-        cardId: payload.cardId,
-        date: payload.date || new Date().toISOString().slice(0, 10),
-        merchant: payload.merchant || "",
-        amount: Number(payload.amount || 0),
-        note: payload.note || "",
-        cleared: false,
-      },
-    ]);
-  }, []);
-
-  const toggleCleared = useCallback((txnId) => {
-    setTxns((prev) => prev.map((t) => (t.id === txnId ? { ...t, cleared: !t.cleared } : t)));
-  }, []);
-
-  const updateTxnNote = useCallback((txnId, note) => {
-    setTxns((prev) => prev.map((t) => (t.id === txnId ? { ...t, note } : t)));
-  }, []);
-
-  // ---------- UI helpers ----------
-  const [hideReminder, setHideReminder] = useState(false);
-  const showReminder = totalPending > 0 && !hideReminder;
-
-  function pickColor() {
-    const palette = ["#2563EB", "#7C3AED", "#0EA5E9", "#10B981", "#F59E0B"];
-    return palette[Math.floor(Math.random() * palette.length)];
-  }
-  function sanitizeDueDay(d) {
-    const n = Number(d);
-    if (!Number.isFinite(n)) return 1;
-    return Math.min(31, Math.max(1, Math.round(n)));
-  }
-  function ordinal(n) {
-    const s = ["th", "st", "nd", "rd"], v = n % 100;
-    return n + (s[(v - 20) % 10] || s[v] || s[0]);
-  }
-  function daysUntilNextDue(dueDay) {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = now.getMonth();
-    const candidate = new Date(y, m, Math.min(dueDay, daysInMonth(y, m)));
-    let target = candidate;
-    if (candidate < stripTime(now)) {
-      const m2 = m === 11 ? 0 : m + 1;
-      const y2 = m === 11 ? y + 1 : y;
-      target = new Date(y2, m2, Math.min(dueDay, daysInMonth(y2, m2)));
-    }
-    return Math.round((stripTime(target) - stripTime(now)) / 86400000);
-  }
-  function stripTime(d) {
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  }
-  function daysInMonth(y, m) {
-    return new Date(y, m + 1, 0).getDate();
-  }
-
-  return (
-    <div className="container">
-      <div className="topbar">
-        <h2>VaultSwipe — Manual Mode</h2>
-        <div className="subtle">Snapshot first. Add details only when needed.</div>
-      </div>
-
-      {/* Snapshot: align like checking (label left, big amount right) */}
-      <div className="card">
-        <div className="row-inline">
-          <div className="inline-left">
-            <h3>Pending to Transfer</h3>
-          </div>
-          <div className="inline-right">
-            <div className="amt-inline">
-              ${totalPending.toFixed(2)}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Reminder */}
-      {showReminder && (
-        <div className="banner">
-          <div>You have <strong>${totalPending.toFixed(2)}</strong> in pending manual transfers.</div>
-          <button className="linkish" onClick={() => setHideReminder(true)}>Dismiss</button>
-        </div>
-      )}
-
-      {/* Checking (compact inline editor to the right) */}
-      <div className="card">
-        <div className="row-inline">
-          <div className="inline-left">
-            <h3>Main Checking Account</h3>
-            <div className="muted">Available Balance</div>
-          </div>
-          <div className="inline-right">
-            {!showEditChecking ? (
-              <>
-                <div className="amt-inline">
-                  ${Number(checkingBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </div>
-                <button className="btn-outline btn-xs" onClick={() => setShowEditChecking(true)}>Edit</button>
-              </>
-            ) : (
-              <div className="inline-edit">
-                <input
-                  className="input-sm"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={checkingBalance}
-                  onChange={(e) => setCheckingBalance(e.target.value)}
-                />
-                <button className="btn btn-xs" onClick={() => setShowEditChecking(false)}>Save</button>
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="hint">Later: link this for real-time balance.</div>
-      </div>
-
-      {/* Add Card */}
-      <div className="card">
-        <div className="row-header">
-          <div className="title-col">
-            <h3>Add Card</h3>
-          </div>
-          <div className="actions-col">
-            <button className="btn btn-sm" onClick={() => setShowAddCard((v) => !v)}>
-              {showAddCard ? "Close" : "Add"}
-            </button>
-          </div>
-        </div>
-        {showAddCard && (
-          <AddCardForm
-            onAdd={(name, color, dueDay) => {
-              addCard(name, color, dueDay);
-              setShowAddCard(false);
-            }}
-          />
-        )}
-      </div>
-
-      {/* Cards */}
-      {cards.length === 0 ? (
-        <div className="card"><em>Add a card to get started.</em></div>
-      ) : (
-        cards.map((c) => {
-          const dueIn = daysUntilNextDue(c.dueDay || 1);
-          const dueText = `Due: ${ordinal(c.dueDay || 1)}${Number.isFinite(dueIn) ? ` (in ${dueIn} day${dueIn === 1 ? "" : "s"})` : ""}`;
-          const dueSoon = dueIn <= 5;
-          return (
-            <CardBlock
-              key={c.id}
-              card={c}
-              dueText={dueText}
-              dueSoon={dueSoon}
-              txns={txns.filter((t) => t.cardId === c.id)}
-              pendingTotal={pendingByCard[c.id] || 0}
-              onAddTxn={addTxn}
-              onToggleCleared={toggleCleared}
-              onUpdateNote={updateTxnNote}
-              onRename={renameCard}
-              onRecolor={recolorCard}
-              onChangeDueDay={changeDueDay}
-            />
-          );
-        })
-      )}
-    </div>
-  );
+/* ===== Base ===== */
+:root {
+  --actions-width: 170px;
 }
 
-/* ---------- Components ---------- */
+body {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: #f8fafc;
+  margin: 0;
+}
+.container {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 20px;
+}
+.card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+h2, h3 { margin: 0 0 8px 0; }
+.subtle { color: #6b7280; }
 
-function AddCardForm({ onAdd }) {
-  const [name, setName] = useState("");
-  const [color, setColor] = useState("");
-  const [dueDay, setDueDay] = useState("");
+/* ===== Inputs / Buttons ===== */
+input, select, button {
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 14px;
+}
+.row { display: flex; gap: 8px; }
+.wrap { flex-wrap: wrap; }
+.flex1 { flex: 1; }
+.muted { color: #6b7280; }
+.hint { color: #6b7280; font-size: 0.85em; }
+.truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-  return (
-    <div className="row wrap">
-      <input
-        className="flex1"
-        placeholder="Card nickname (e.g., WF Cashback)"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
-      <input
-        placeholder="Optional color hex (e.g., #2563EB)"
-        value={color}
-        onChange={(e) => setColor(e.target.value)}
-      />
-      <input
-        className="input-sm"
-        type="number"
-        min="1"
-        max="31"
-        placeholder="Due day (1–31)"
-        value={dueDay}
-        onChange={(e) => setDueDay(e.target.value)}
-      />
-      <button
-        className="btn btn-sm"
-        onClick={() => {
-          if (!name.trim()) return;
-          const dd = dueDay ? Number(dueDay) : 1;
-          onAdd(name.trim(), color.trim() || undefined, dd);
-          setName(""); setColor(""); setDueDay("");
-        }}
-      >
-        Save
-      </button>
-    </div>
-  );
+.btn {
+  background: #2563eb; color: #fff; border: none;
+  padding: 9px 16px; border-radius: 10px; cursor: pointer; font-weight: 700;
+}
+.btn:hover { background: #1e40af; }
+.btn-outline {
+  background: #fff; color: #2563eb; border: 1px solid #93c5fd;
+  padding: 9px 16px; border-radius: 10px; cursor: pointer; font-weight: 700;
+}
+.btn-outline:hover { background: #eff6ff; }
+.btn-ghost { background: transparent; color: #2563eb; border: none; padding: 8px 10px; border-radius: 10px; cursor: pointer; font-weight: 700; }
+.btn-ghost:hover { background: #eff6ff; }
+.btn-xs { padding: 4px 8px; font-size: 12.5px; border-radius: 7px; font-weight: 700; }
+.btn-sm { padding: 6px 10px; font-size: 13px; border-radius: 8px; font-weight: 700; }
+
+.linkish { background: transparent; color: #2563eb; border: none; cursor: pointer; font-weight: 700; }
+
+/* ===== Inline rows ===== */
+.row-inline {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.inline-left { display: flex; flex-direction: column; }
+.inline-right { display: flex; align-items: center; gap: 10px; }
+.inline-edit { display: inline-flex; align-items: center; gap: 8px; }
+.input-sm { width: 140px; padding: 6px 8px; font-size: 14px; }
+.amt-inline { font-weight: 800; font-size: 20px; }
+
+/* ===== Two-column snapshot under Main Checking ===== */
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+.mini-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+}
+.mini-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-bottom: 6px;
+}
+.mini-amt {
+  font-size: 18px; font-weight: 800;
+}
+.pending-note {
+  margin-top: 8px; color: #374151;
 }
 
-function CardBlock({
-  card,
-  dueText,
-  dueSoon,
-  txns,
-  pendingTotal,
-  onAddTxn,
-  onToggleCleared,
-  onUpdateNote,
-  onRename,
-  onRecolor,
-  onChangeDueDay,
-}) {
-  const [showAddTxn, setShowAddTxn] = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
+/* ===== Card headers / aligned amount column ===== */
+.row-header {
+  display: flex; align-items: center; padding-left: 8px;
+  margin: -6px 0 8px 0; border-left: 6px solid #0f766e; gap: 10px;
+}
+.title-col { flex: 1 1 auto; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.title-stack { display: flex; flex-direction: column; gap: 2px; }
+.due-line { font-size: 12.5px; color: #6b7280; }
+.due-soon { color: #b45309; font-weight: 700; }
 
-  const pending = txns.filter((t) => !t.cleared);
-  const cleared = txns.filter((t) => t.cleared);
+.actions-col { flex: 0 0 var(--actions-width); width: var(--actions-width);
+  display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
+.actions-col--amt { gap: 0; }
+.amt-large { font-size: 22px; font-weight: 800; letter-spacing: 0.2px; }
 
-  return (
-    <div className="card">
-      {/* Header: title/due (left) + big untransferred (right) */}
-      <div className="row-header" style={{ borderLeft: `6px solid ${card.color}` }}>
-        <div className="title-col">
-          <button
-            className="icon-btn"
-            aria-label="Edit card"
-            title="Edit card"
-            onClick={() => setShowEdit((v) => !v)}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="2"/>
-              <rect x="3" y="8" width="18" height="3" fill="currentColor"/>
-            </svg>
-          </button>
-          <div className="title-stack">
-            <h3 className="truncate">{card.name}</h3>
-            <div className={`due-line ${dueSoon ? "due-soon" : ""}`}>{dueText}</div>
-          </div>
-        </div>
-        <div className="actions-col actions-col--amt">
-          <div className="amt-large" title="Untransferred amount">
-            ${pendingTotal.toFixed(2)}
-          </div>
-        </div>
-      </div>
+.icon-btn {
+  background: #fff; border: 1px solid #e5e7eb; color: #374151;
+  width: 36px; height: 36px; padding: 0; border-radius: 10px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.icon-btn:hover { background: #f9fafb; }
 
-      {/* Add button placed BETWEEN header and transaction list */}
-      <div className="between-row">
-        <button
-          className="btn-outline btn-sm"
-          onClick={() => setShowAddTxn((v) => !v)}
-          title="Add transaction"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
-          Add Transaction
-        </button>
-      </div>
-
-      {showEdit && (
-        <div className="cc-edit">
-          <div className="row wrap">
-            <label className="field flex1">
-              <span className="lbl">Card name</span>
-              <input
-                defaultValue={card.name}
-                onBlur={(e) => {
-                  const v = e.target.value.trim();
-                  if (v && v !== card.name) onRename(card.id, v);
-                }}
-              />
-            </label>
-            <label className="field">
-              <span className="lbl">Color</span>
-              <input
-                defaultValue={card.color}
-                onBlur={(e) => {
-                  const v = e.target.value.trim();
-                  if (v && v !== card.color) onRecolor(card.id, v);
-                }}
-              />
-            </label>
-            <label className="field" style={{ maxWidth: 160 }}>
-              <span className="lbl">Payment due day (1–31)</span>
-              <input
-                type="number"
-                min="1"
-                max="31"
-                defaultValue={card.dueDay || 1}
-                onBlur={(e) => {
-                  const v = e.target.value.trim();
-                  if (v) onChangeDueDay(card.id, Number(v));
-                }}
-              />
-            </label>
-          </div>
-          <div className="hint">Destructive actions like Delete will live here later.</div>
-        </div>
-      )}
-
-      {showAddTxn && (
-        <div className="cc-add-txn">
-          <InlineAddTxn
-            cardId={card.id}
-            onAdd={(payload) => {
-              onAddTxn(payload);
-            }}
-          />
-        </div>
-      )}
-
-      {/* Transactions */}
-      {pending.length === 0 ? (
-        <div className="muted">No untransferred items.</div>
-      ) : (
-        pending.map((t) => (
-          <TxnRow
-            key={t.id}
-            txn={t}
-            onToggleCleared={() => onToggleCleared(t.id)}
-            onUpdateNote={(note) => onUpdateNote(t.id, note)}
-          />
-        ))
-      )}
-
-      <details className="details">
-        <summary>Cleared</summary>
-        <div className="section">
-          {cleared.length === 0 ? (
-            <div className="muted">Nothing cleared yet.</div>
-          ) : (
-            cleared.map((t) => (
-              <TxnRow
-                key={t.id}
-                txn={t}
-                cleared
-                onToggleCleared={() => onToggleCleared(t.id)}
-                onUpdateNote={(note) => onUpdateNote(t.id, note)}
-              />
-            ))
-          )}
-        </div>
-      </details>
-    </div>
-  );
+/* Controls row under header: left + right alignment */
+.controls-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 4px 0 10px;
 }
 
-function InlineAddTxn({ cardId, onAdd }) {
-  const [merchant, setMerchant] = useState("");
-  const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
+/* ===== Edit / Add sections ===== */
+.cc-edit { margin-top: 10px; }
+.cc-add-txn { margin-top: 10px; }
+.field { display: flex; flex-direction: column; min-width: 160px; }
+.lbl { display: block; font-size: 0.85em; color: #5f6b7a; margin-bottom: 4px; }
 
-  return (
-    <div className="row wrap">
-      <input
-        className="flex1"
-        placeholder="Merchant"
-        value={merchant}
-        onChange={(e) => setMerchant(e.target.value)}
-      />
-      <input
-        type="number"
-        step="0.01"
-        placeholder="Amount"
-        value={amount}
-        onChange={(e) => setAmount(e.target.value)}
-      />
-      <input
-        className="flex1"
-        placeholder="Optional note"
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-      />
-      <button
-        className="btn btn-sm"
-        onClick={() => {
-          if (!amount) return;
-          onAdd({
-            cardId,
-            date: new Date().toISOString().slice(0, 10),
-            merchant,
-            amount,
-            note,
-          });
-          setMerchant("");
-          setAmount("");
-          setNote("");
-        }}
-      >
-        Add
-      </button>
-    </div>
-  );
+/* ===== Transactions (compact) ===== */
+.txn-row {
+  border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; margin-bottom: 8px;
 }
+.txn-row.compact { padding: 10px 12px; }
+.txn-row.cleared { opacity: 0.7; }
 
-function TxnRow({ txn, cleared, onToggleCleared, onUpdateNote }) {
-  const [editing, setEditing] = useState(false);
-  const [noteDraft, setNoteDraft] = useState(txn.note || "");
+.txn-line1, .txn-line2 { display: flex; justify-content: space-between; align-items: center; }
+.txn-merchant { font-weight: 700; }
+.txn-amount { font-weight: 800; }
 
-  return (
-    <div className={`txn-row compact ${cleared ? "cleared" : ""}`}>
-      <div className="txn-line1">
-        <div className="txn-merchant">{txn.merchant || "—"}</div>
-        <div className="txn-amount">${Number(txn.amount).toFixed(2)}</div>
-      </div>
+.txn-line2 { min-height: 28px; }
+.txn-meta-left { display: flex; gap: 8px; align-items: center; }
+.note-pill {
+  background: #eef2ff; color: #1d4ed8; padding: 2px 8px;
+  border-radius: 999px; font-size: 0.85em; line-height: 22px;
+}
+.note-placeholder { display: inline-block; height: 22px; min-width: 1px; }
+.txn-actions { display: flex; gap: 8px; align-items: center; }
 
-      {/* Fixed-height second line so actions align, note or not */}
-      <div className="txn-line2">
-        <div className="txn-meta-left">
-          <span className="muted">{txn.date}</span>
-          {txn.note && !editing ? (
-            <span className="note-pill">{txn.note}</span>
-          ) : (
-            <span className="note-placeholder" />
-          )}
-        </div>
-        <div className="txn-actions">
-          <button className="btn-outline btn-sm" onClick={onToggleCleared}>
-            {cleared ? "Unclear" : "Clear"}
-          </button>
-          <button className="btn-ghost btn-sm" onClick={() => setEditing((v) => !v)}>
-            {editing ? "Cancel" : "Note"}
-          </button>
-        </div>
-      </div>
+.txn-note-editor { display: flex; gap: 8px; margin-top: 8px; }
 
-      {editing && (
-        <div className="txn-note-editor">
-          <input
-            className="flex1"
-            placeholder="Add a note (refund pending, verify charge)"
-            value={noteDraft}
-            onChange={(e) => setNoteDraft(e.target.value)}
-          />
-          <button
-            className="btn btn-sm"
-            onClick={() => {
-              onUpdateNote(noteDraft);
-              setEditing(false);
-            }}
-          >
-            Save
-          </button>
-        </div>
-      )}
-    </div>
-  );
+/* ===== Mobile ===== */
+@media (max-width: 520px) {
+  .container { padding: 12px; }
+  .card { padding: 12px; border-radius: 14px; }
+  .row { flex-direction: column; gap: 10px; }
+  input, select, button { font-size: 16px; padding: 10px 12px; } /* iOS zoom fix */
+  :root { --actions-width: 150px; }
+  .amt-inline { font-size: 18px; }
+  .amt-large { font-size: 20px; }
+  .input-sm { width: 120px; }
+  .two-col { grid-template-columns: 1fr; }
 }
