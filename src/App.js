@@ -1,17 +1,17 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import "./styles.css";
 
-const STORAGE_KEY = "vaultswipe_mvp3";
+const STORAGE_KEY = "vaultswipe_mvp4";
 
 /**
  * Manual MVP with:
  * - Main Checking at top
+ * - A centered "Transfer" button that opens a dialog for Main <-> Vault transfers (swap direction)
  * - Two-column snapshot: Vault Account | Total Card Balances (sum of UNCLEARED txns)
- * - Pending manual transfers = Total Card Balances - Vault Account
- * - Card blocks with: View Transactions (toggle), Add Transaction (collapsible), Edit
+ * - "Difference" = Total Card Balances - Vault Account (never negative)
+ * - Card blocks with: View Transactions, Add Transaction (collapsible), Edit
  * - Transaction actions order: Vault | Note | Clear
- * - Add Card is now collapsible (button reveals form below all cards)
- * - Top-level simple transfer between Main <-> Vault
+ * - Add Card is collapsible under the cards
  */
 
 export default function App() {
@@ -32,8 +32,11 @@ export default function App() {
 
   const [showAddCard, setShowAddCard] = useState(false);
 
-  // Quick transfer amount (Main <-> Vault)
+  // Transfer dialog state
+  const [showTransfer, setShowTransfer] = useState(false);
   const [transferAmt, setTransferAmt] = useState("");
+  // direction: "toVault" = Main -> Vault, "toMain" = Vault -> Main
+  const [transferDir, setTransferDir] = useState("toVault");
 
   // ---------- Persistence ----------
   useEffect(() => {
@@ -71,7 +74,8 @@ export default function App() {
     [pendingByCard]
   );
 
-  const pendingDifference = useMemo(() => {
+  // "Difference" = Total Card Balances - Vault Account (never negative)
+  const difference = useMemo(() => {
     const diff = totalCardBalances - Number(vaultBalance || 0);
     return diff > 0 ? diff : 0;
   }, [totalCardBalances, vaultBalance]);
@@ -135,20 +139,29 @@ export default function App() {
     setVaultBalance((b) => Number((b + amt).toFixed(2)));
   }, []);
 
-  // Quick transfer top control
-  const transferToVault = () => {
-    const amt = Number(transferAmt || 0);
-    if (!amt || amt <= 0) return;
-    setCheckingBalance((b) => Number((b - amt).toFixed(2)));
-    setVaultBalance((b) => Number((b + amt).toFixed(2)));
-    setTransferAmt("");
+  // Transfer dialog actions
+  const swapDirection = () => {
+    setTransferDir((d) => (d === "toVault" ? "toMain" : "toVault"));
   };
-  const transferToMain = () => {
+  const performTransfer = () => {
     const amt = Number(transferAmt || 0);
     if (!amt || amt <= 0) return;
-    setVaultBalance((b) => Number((b - amt).toFixed(2)));
-    setCheckingBalance((b) => Number((b + amt).toFixed(2)));
+
+    if (transferDir === "toVault") {
+      // Main -> Vault
+      if (checkingBalance >= amt) {
+        setCheckingBalance((b) => Number((b - amt).toFixed(2)));
+        setVaultBalance((b) => Number((b + amt).toFixed(2)));
+      }
+    } else {
+      // Vault -> Main
+      if (vaultBalance >= amt) {
+        setVaultBalance((b) => Number((b - amt).toFixed(2)));
+        setCheckingBalance((b) => Number((b + amt).toFixed(2)));
+      }
+    }
     setTransferAmt("");
+    setShowTransfer(false);
   };
 
   // ---------- UI Helpers ----------
@@ -207,6 +220,13 @@ export default function App() {
           </div>
         </div>
 
+        {/* Transfer button (centered) */}
+        <div className="transfer-center">
+          <button className="btn-outline btn-sm" onClick={() => setShowTransfer(true)}>
+            Transfer between Main ↔ Vault
+          </button>
+        </div>
+
         {/* Two columns: Vault | Total Card Balances */}
         <div className="two-col">
           <div className="mini-card">
@@ -230,29 +250,9 @@ export default function App() {
           </div>
         </div>
 
-        {/* Pending manual transfers */}
+        {/* Difference */}
         <div className="pending-note">
-          Pending manual transfers: <strong>${pendingDifference.toFixed(2)}</strong>
-        </div>
-
-        {/* Bi-directional transfer controls */}
-        <div className="transfer-bar">
-          <input
-            className="input-sm"
-            type="number"
-            step="0.01"
-            placeholder="Amount"
-            value={transferAmt}
-            onChange={(e) => setTransferAmt(e.target.value)}
-          />
-          <div className="transfer-buttons">
-            <button className="btn-outline btn-sm" onClick={transferToVault} title="Main → Vault">
-              Main → Vault
-            </button>
-            <button className="btn-outline btn-sm" onClick={transferToMain} title="Vault → Main">
-              Vault → Main
-            </button>
-          </div>
+          Difference: <strong>${difference.toFixed(2)}</strong>
         </div>
       </div>
 
@@ -280,7 +280,7 @@ export default function App() {
               onRename={renameCard}
               onRecolor={recolorCard}
               onChangeDueDay={changeDueDay}
-              onVaultTxnAmount={vaultTxnAmount}
+              onVaultTxnAmount={(amt) => vaultTxnAmount(amt)}
             />
           );
         })
@@ -307,6 +307,48 @@ export default function App() {
           />
         )}
       </div>
+
+      {/* Transfer Dialog */}
+      {showTransfer && (
+        <div className="modal-overlay" onClick={() => setShowTransfer(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Transfer</h3>
+            <div className="modal-body">
+              <div className="transfer-row">
+                <div className="transfer-endpoint">
+                  <div className="endpoint-label">{transferDir === "toVault" ? "From" : "To"}</div>
+                  <div className="endpoint-value">Main Checking</div>
+                </div>
+
+                <button className="swap-btn" onClick={swapDirection} title="Swap direction">
+                  ↔
+                </button>
+
+                <div className="transfer-endpoint">
+                  <div className="endpoint-label">{transferDir === "toVault" ? "To" : "From"}</div>
+                  <div className="endpoint-value">Vault Account</div>
+                </div>
+              </div>
+
+              <div className="row">
+                <input
+                  className="flex1"
+                  type="number"
+                  step="0.01"
+                  placeholder="Amount"
+                  value={transferAmt}
+                  onChange={(e) => setTransferAmt(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="modal-actions">
+              <button className="btn-outline btn-sm" onClick={() => setShowTransfer(false)}>Cancel</button>
+              <button className="btn btn-sm" onClick={performTransfer}>Transfer</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -597,7 +639,7 @@ function TxnRow({ txn, onVault, onToggleCleared, onUpdateNote }) {
           )}
         </div>
         <div className="txn-actions">
-          {/* New order: Vault | Note | Clear */}
+          {/* Order: Vault | Note | Clear */}
           <button className="btn-outline btn-sm" onClick={onVault} title="Move amount to Vault">
             Vault
           </button>
